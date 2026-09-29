@@ -11,10 +11,16 @@
  *  - creatures, weapons and vehicles through `loadProp` / the creature path,
  *    with the same size, axis and grounding the game asks for.
  *
- * Each vertex goes to the bone that drives it most (its dominant skin weight),
- * mapped to the canonical bone the retargeter drives it by, and each bone's
- * cloud is fitted with a few boxes by greedy volume-reducing splits. Colours
- * are the material colour times the base-colour texture, averaged per box.
+ * Each surface point goes to the bone that drives it most (its dominant skin
+ * weight), mapped to the canonical bone the retargeter drives it by. The
+ * posed mesh is then voxelized as a solid (`solidify`) and every solid voxel
+ * goes to the bone of the surface nearest it. Each bone's solid is cut into a
+ * few clusters by greedy volume-reducing splits — in a frame along the
+ * sculpt's own bone for the limbs — and each cluster becomes one box with the
+ * cluster's centroid, proportions from its spread, and exactly its volume
+ * (`solidBox`): the stand-in is as big as the model, not a hull around it.
+ * Colours are the material colour times the base-colour texture, averaged
+ * over the surface each box stands for.
  */
 import * as THREE from 'three';
 import { CREATURE_MODELS, ENEMY_MODELS, loadAuthored, loadProp, retarget } from '../../src/characters/authored';
@@ -23,6 +29,9 @@ import { MODEL_HEIGHT } from '../../src/characters/mandalorians';
 import { WEAPON_PROPS } from '../../src/characters/weaponProps';
 import { VEHICLE_DEFS } from '../../src/game/vehicles';
 import { attachEggRack, BROOD_EGG_RACK } from '../../src/characters/eggrack';
+import OLD_LOD from '../../src/characters/data/lod.json';
+// @ts-expect-error plain JS (no types), shared with the geometric joint estimator
+import { voxelize } from './geo-core.mjs';
 
 const log = (s: string): void => {
   const el = document.getElementById('log')!;
@@ -109,10 +118,14 @@ function eachVertex(
   root: THREE.Object3D, frame: THREE.Object3D,
   visit: (p: THREE.Vector3, c: THREE.Color, driver: THREE.Object3D, mesh: THREE.Mesh, i: number) => void,
   maxPoints = 40000,
+  /** every drawn triangle, as nine coordinates in `frame`'s space (for the solid volume) */
+  tris?: number[],
+  /** triangles to leave out of `tris`, by their first vertex */
+  skipTri?: (mesh: THREE.Mesh, i: number) => boolean,
 ): void {
   root.updateMatrixWorld(true);
   const toFrame = frame.matrixWorld.clone().invert();
-  interface Prep { mesh: THREE.Mesh; P: Float32Array; tris: Uint32Array; area: Float64Array; total: number }
+  interface Prep { mesh: THREE.Mesh; P: Float32Array; tris_: Uint32Array; area: Float64Array; total: number }
   const preps: Prep[] = [];
   let total = 0;
   root.traverse((o) => {
@@ -129,23 +142,23 @@ function eachVertex(
     }
     const index = geo.index;
     const n = index ? index.count : pos.count;
-    const tris = new Uint32Array(n);
-    for (let k = 0; k < n; k++) tris[k] = index ? index.getX(k) : k;
+    const tris_ = new Uint32Array(n);
+    for (let k = 0; k < n; k++) tris_[k] = index ? index.getX(k) : k;
     const area = new Float64Array(n / 3);
     let sum = 0;
     const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
     for (let t = 0; t < n / 3; t++) {
-      A.fromArray(P, tris[t * 3] * 3); B.fromArray(P, tris[t * 3 + 1] * 3); C.fromArray(P, tris[t * 3 + 2] * 3);
+      A.fromArray(P, tris_[t * 3] * 3); B.fromArray(P, tris_[t * 3 + 1] * 3); C.fromArray(P, tris_[t * 3 + 2] * 3);
       area[t] = B.sub(A).cross(C.sub(A)).length() / 2;
       sum += area[t];
     }
-    preps.push({ mesh, P, tris, area, total: sum });
+    preps.push({ mesh, P, tris_, area, total: sum });
     total += sum;
   });
   if (!(total > 0)) return;
   const rand = rng(0x5eed);
   const perArea = maxPoints / total;
-  for (const { mesh, P, tris, area } of preps) {
+  for (const { mesh, P, tris_, area } of preps) {
     const geo = mesh.geometry;
     const uv = geo.attributes.uv;
     const col = geo.attributes.color;
@@ -153,8 +166,16 @@ function eachVertex(
     const matOf = new Int16Array(geo.attributes.position.count);
     if (geo.groups.length && mats.length > 1) {
       for (const g of geo.groups) {
-        const end = Math.min(g.start + g.count, tris.length);
-        for (let k = g.start; k < end; k++) matOf[tris[k]] = g.materialIndex ?? 0;
+        const end = Math.min(g.start + g.count, tris_.length);
+        for (let k = g.start; k < end; k++) matOf[tris_[k]] = g.materialIndex ?? 0;
+      }
+    }
+    if (tris) {
+      for (let t = 0; t < area.length; t++) {
+        const i0 = tris_[t * 3];
+        const mt = mats[matOf[i0]] ?? mats[0];
+        if (!mt || mt.visible === false || skipTri?.(mesh, i0)) continue;
+        for (let c = 0; c < 3; c++) { const i = tris_[t * 3 + c] * 3; tris.push(P[i], P[i + 1], P[i + 2]); }
       }
     }
     const skinned = mesh as THREE.SkinnedMesh;
@@ -177,7 +198,7 @@ function eachVertex(
         let u = rand(), v = rand();
         if (u + v > 1) { u = 1 - u; v = 1 - v; }
         const w = 1 - u - v;
-        const i0 = tris[t * 3], i1 = tris[t * 3 + 1], i2 = tris[t * 3 + 2];
+        const i0 = tris_[t * 3], i1 = tris_[t * 3 + 1], i2 = tris_[t * 3 + 2];
         _v.set(
           P[i0 * 3] * w + P[i1 * 3] * u + P[i2 * 3] * v,
           P[i0 * 3 + 1] * w + P[i1 * 3 + 1] * u + P[i2 * 3 + 1] * v,
@@ -199,18 +220,19 @@ function eachVertex(
 }
 
 // ---------------------------------------------------------------- box fitting
-interface Box { c: [number, number, number]; s: [number, number, number]; col: number; n: number }
+/**
+ * A stand-in box: centre and size in the frame it was fitted in, its colour,
+ * the turn it carries in that frame (null: square to it), and the volume of
+ * the plain bounding box around what it stands for (to pick a frame by).
+ */
+interface Box { c: [number, number, number]; s: [number, number, number]; col: number; n: number; q: THREE.Quaternion | null; bound: number }
 
-function trimmedBounds(cloud: Cloud, ids: number[], trim: number): { min: number[]; max: number[] } {
-  const min = [0, 0, 0], max = [0, 0, 0];
-  const vals = new Float64Array(ids.length);
-  for (let a = 0; a < 3; a++) {
-    for (let k = 0; k < ids.length; k++) vals[k] = cloud.xyz[ids[k] * 3 + a];
-    vals.sort();
-    const lo = Math.floor(trim * (ids.length - 1));
-    const hi = Math.ceil((1 - trim) * (ids.length - 1));
-    min[a] = vals[lo];
-    max[a] = vals[hi];
+function bounds(cloud: Cloud, ids: number[]): { min: number[]; max: number[] } {
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (const i of ids) for (let a = 0; a < 3; a++) {
+    const x = cloud.xyz[i * 3 + a];
+    if (x < min[a]) min[a] = x;
+    if (x > max[a]) max[a] = x;
   }
   return { min, max };
 }
@@ -220,16 +242,17 @@ function volume(min: number[], max: number[], eps: number): number {
 }
 
 /**
- * Greedy box split: start with one box around the cloud, then keep cutting
- * whichever box gains the most volume from being cut in two (along any axis,
- * at the best cut), until the budget is spent or no cut is worth it.
+ * Greedy split of a cloud into at most `budget` clusters: start with one box
+ * around it, then keep cutting whichever box gains the most bounding volume
+ * from being cut in two (or three), along any axis of the cloud's frame, at
+ * the best cut, until the budget is spent or no cut is worth it. Only the
+ * partition is kept: each cluster's box is sized afterwards (`solidBox`).
  */
-function fitBoxes(cloud: Cloud, ids: number[], budget: number, opts: { accept?: number; trim?: number; minFrac?: number } = {}): Box[] {
+function splitLeaves(cloud: Cloud, ids: number[], budget: number, opts: { accept?: number; minFrac?: number } = {}): number[][] {
   const accept = opts.accept ?? 0.85;
-  const trim = opts.trim ?? 0.01;
   const minFrac = opts.minFrac ?? 0.06;
   if (!ids.length) return [];
-  const all = trimmedBounds(cloud, ids, 0);
+  const all = bounds(cloud, ids);
   const span = Math.max(all.max[0] - all.min[0], all.max[1] - all.min[1], all.max[2] - all.min[2]);
   const eps = span * 0.02 + 1e-6;
   const minPts = Math.max(8, Math.floor(ids.length * minFrac));
@@ -247,7 +270,7 @@ function fitBoxes(cloud: Cloud, ids: number[], budget: number, opts: { accept?: 
       const B = Math.min(40, Math.floor(n / minPts));
       if (B >= 3) {
         const bin = (k: number): number => Math.floor((k * n) / B);
-        const bounds: number[][] = [];
+        const bnds: number[][] = [];
         for (let j = 0; j < B; j++) {
           const bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
           for (let k = bin(j); k < bin(j + 1); k++) {
@@ -257,13 +280,13 @@ function fitBoxes(cloud: Cloud, ids: number[], budget: number, opts: { accept?: 
               bb[d + 3] = Math.max(bb[d + 3], cloud.xyz[q + d]);
             }
           }
-          bounds.push(bb);
+          bnds.push(bb);
         }
         const range = (from: number, to: number): number => {
           const bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
           for (let j = from; j < to; j++) for (let d = 0; d < 3; d++) {
-            bb[d] = Math.min(bb[d], bounds[j][d]);
-            bb[d + 3] = Math.max(bb[d + 3], bounds[j][d + 3]);
+            bb[d] = Math.min(bb[d], bnds[j][d]);
+            bb[d + 3] = Math.max(bb[d + 3], bnds[j][d + 3]);
           }
           return volume([bb[0], bb[1], bb[2]], [bb[3], bb[4], bb[5]], eps);
         };
@@ -305,7 +328,7 @@ function fitBoxes(cloud: Cloud, ids: number[], budget: number, opts: { accept?: 
     return best;
   };
   const leaf = (set: number[]): Leaf => {
-    const b = trimmedBounds(cloud, set, 0);
+    const b = bounds(cloud, set);
     return { ids: set, vol: volume(b.min, b.max, eps), cut: bestCut(set) };
   };
   const leaves = [leaf(ids)];
@@ -321,19 +344,188 @@ function fitBoxes(cloud: Cloud, ids: number[], budget: number, opts: { accept?: 
     const l = leaves[pick];
     leaves.splice(pick, 1, ...l.cut!.parts.map(leaf));
   }
-  return leaves.map((l) => {
-    const b = trimmedBounds(cloud, l.ids, l.ids.length > 60 ? trim : 0);
-    let r = 0, g = 0, bl = 0;
-    for (const i of l.ids) { r += cloud.rgb[i * 3]; g += cloud.rgb[i * 3 + 1]; bl += cloud.rgb[i * 3 + 2]; }
-    const n = l.ids.length;
-    const col = new THREE.Color(r / n, g / n, bl / n).getHex();
-    const floor = span * 0.015;
-    return {
-      c: [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2],
-      s: [Math.max(floor, b.max[0] - b.min[0]), Math.max(floor, b.max[1] - b.min[1]), Math.max(floor, b.max[2] - b.min[2])],
-      col, n,
-    };
+  return leaves.map((l) => l.ids);
+}
+
+// ---------------------------------------------------------------- solid volume
+/**
+ * The solid a model encloses, as voxels, each handed to the bone (or node) of
+ * the surface nearest it. Voxelized by `voxelize` (geo-core.mjs): the surface
+ * rasterised and thickened by `close` voxels, the outside flood-filled from
+ * the grid's border, everything the flood cannot reach is solid.
+ *
+ * Every surface sample stamps its key on the voxel it falls in; the keys then
+ * spread through the solid, breadth first, so every inside voxel belongs to
+ * the surface nearest it — the torso's core to the torso, a thigh's to the
+ * thigh, however the two meet.
+ *
+ * A voxel the surface runs through counts as half a voxel of solid (`w`):
+ * on average half of it is inside. Counted whole, the skin alone adds a
+ * quarter to a body's volume at these voxel sizes, and a thin robe or cape
+ * comes out a voxel thick either way.
+ */
+interface Solid { xyz: Float32Array; key: Int32Array; w: Float32Array; n: number; h: number; vol: number; surfFrac: number }
+function solidify(tris: number[], samples: Cloud, h: number, close = 1): Solid {
+  const T = Float32Array.from(tris);
+  const { grid: g, solid, surf } = voxelize(T, h, 4, close) as {
+    grid: { n: number[]; o: number[]; size: number; sz: number; idx(i: number, j: number, k: number): number; cell(x: number, y: number, z: number): number[] };
+    solid: Uint8Array; surf: Uint8Array;
+  };
+  const [NX, NY, NZ] = g.n;
+  const label = new Int32Array(g.size).fill(-1);
+  const queue = new Int32Array(g.size);
+  let qt = 0;
+  // most samples per voxel wins, so one stray sample does not take a voxel
+  const votes = new Map<number, Map<number, number>>();
+  for (let i = 0; i < samples.n; i++) {
+    const [a, b, c] = g.cell(samples.xyz[i * 3], samples.xyz[i * 3 + 1], samples.xyz[i * 3 + 2]);
+    if (a < 0 || b < 0 || c < 0 || a >= NX || b >= NY || c >= NZ) continue;
+    const v = g.idx(a, b, c);
+    if (!solid[v]) continue;
+    let m = votes.get(v);
+    if (!m) votes.set(v, m = new Map());
+    m.set(samples.key[i], (m.get(samples.key[i]) ?? 0) + 1);
+  }
+  for (const [v, m] of votes) {
+    let best = -1, n = 0;
+    for (const [k, c] of m) if (c > n) { n = c; best = k; }
+    label[v] = best;
+    queue[qt++] = v;
+  }
+  for (let qh = 0; qh < qt; qh++) {
+    const v = queue[qh];
+    const i = v % NX, r = (v - i) / NX, j = r % NY, k = (r - j) / NY;
+    const nb = [i > 0 ? v - 1 : -1, i < NX - 1 ? v + 1 : -1, j > 0 ? v - NX : -1, j < NY - 1 ? v + NX : -1,
+      k > 0 ? v - g.sz : -1, k < NZ - 1 ? v + g.sz : -1];
+    for (const w of nb) if (w >= 0 && solid[w] && label[w] < 0) { label[w] = label[v]; queue[qt++] = w; }
+  }
+  let n = 0, nSurf = 0;
+  for (let v = 0; v < g.size; v++) if (label[v] >= 0) { n++; if (surf[v]) nSurf++; }
+  const xyz = new Float32Array(n * 3), key = new Int32Array(n), w = new Float32Array(n);
+  let o = 0;
+  for (let v = 0; v < g.size; v++) {
+    if (label[v] < 0) continue;
+    const i = v % NX, r = (v - i) / NX, j = r % NY, k = (r - j) / NY;
+    xyz[o * 3] = g.o[0] + i * h; xyz[o * 3 + 1] = g.o[1] + j * h; xyz[o * 3 + 2] = g.o[2] + k * h;
+    // the surface runs through a surface voxel, so on average half of it is inside
+    w[o] = surf[v] ? 0.5 : 1;
+    key[o++] = label[v];
+  }
+  return { xyz, key, w, n, h, vol: (n - nSurf / 2) * h ** 3, surfFrac: n ? nSurf / n : 0 };
+}
+
+/** a voxel size giving about `cells` cells across the triangles' bounds, and never coarser than `longest / across` */
+function voxelSize(tris: number[], across = 160, cells = 1.5e6): number {
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < tris.length; i++) { const k = i % 3; mn[k] = Math.min(mn[k], tris[i]); mx[k] = Math.max(mx[k], tris[i]); }
+  const e = [0, 1, 2].map((k) => Math.max(1e-6, mx[k] - mn[k]));
+  return Math.max(Math.max(...e) / across, Math.cbrt((e[0] * e[1] * e[2]) / cells));
+}
+
+const SQRT12 = Math.sqrt(12);
+
+/**
+ * The box one cluster of solid voxels stands for: centred on the cluster's
+ * centroid, its sides in proportion to the cluster's spread along each axis
+ * (a solid box's side is √12 standard deviations), then scaled together so
+ * the box holds exactly the cluster's volume. No side may pass the cluster's
+ * own bounds — what one clamps, the others make up — so a box never reaches
+ * further than the shape it stands for.
+ */
+function solidBox(vox: Cloud, ids: number[], cellVol: number): { c: number[]; s: number[]; bound: number } {
+  const cell = Math.cbrt(cellVol);
+  const n = ids.length;
+  // a voxel cloud carries each voxel's share of solid in its red channel
+  let filled = 0;
+  for (const i of ids) filled += vox.rgb[i * 3];
+  const mean = [0, 0, 0], sq = [0, 0, 0];
+  const { min, max } = bounds(vox, ids);
+  for (const i of ids) for (let a = 0; a < 3; a++) mean[a] += vox.xyz[i * 3 + a];
+  for (let a = 0; a < 3; a++) mean[a] /= n;
+  for (const i of ids) for (let a = 0; a < 3; a++) { const d = vox.xyz[i * 3 + a] - mean[a]; sq[a] += d * d; }
+  const cap = [0, 1, 2].map((a) => max[a] - min[a] + cell);
+  // each voxel is a cube, not a point: its own spread adds cell²/12
+  const s = [0, 1, 2].map((a) => Math.min(cap[a], Math.max(cell, SQRT12 * Math.sqrt(sq[a] / n + (cell * cell) / 12))));
+  const target = filled * cellVol;
+  for (let iter = 0; iter < 4; iter++) {
+    const free = [0, 1, 2].filter((a) => s[a] < cap[a] - 1e-9);
+    const vol = s[0] * s[1] * s[2];
+    if (!free.length || Math.abs(vol / target - 1) < 1e-4) break;
+    const k = Math.pow(target / vol, 1 / free.length);
+    for (const a of free) s[a] = Math.min(cap[a], s[a] * k);
+  }
+  // inside the cluster's bounds: a lopsided cluster's centroid sits off the middle
+  const c = mean.map((m, a) => {
+    const lo = min[a] - cell / 2 + s[a] / 2, hi = max[a] + cell / 2 - s[a] / 2;
+    return Math.min(Math.max(m, Math.min(lo, hi)), Math.max(lo, hi));
   });
+  return { c, s, bound: cap[0] * cap[1] * cap[2] };
+}
+
+/**
+ * Boxes for one bone's (node's, prop's) solid: the voxels `vids` of `vox`,
+ * cut into at most `budget` clusters in the frame `R` (its columns are the
+ * box axes, in the cloud's frame; null = the cloud's own axes), a box per
+ * cluster sized to its volume (`solidBox`). Colours come from the surface
+ * samples `sids` of `samp`, each to the box nearest it.
+ */
+function fitSolid(vox: Cloud, vids: number[], samp: Cloud, sids: number[], budget: number, cellVol: number,
+  R: THREE.Matrix3 | null, opts: { accept?: number; minFrac?: number } = {}): Box[] {
+  if (!vids.length) return [];
+  const Rt = R ? R.clone().transpose() : null;
+  const turn = (src: Cloud, ids: number[]): Cloud => {
+    const out = new Cloud();
+    for (const i of ids) {
+      _v.set(src.xyz[i * 3], src.xyz[i * 3 + 1], src.xyz[i * 3 + 2]);
+      if (Rt) _v.applyMatrix3(Rt);
+      out.push(_v, _c.setRGB(src.rgb[i * 3], src.rgb[i * 3 + 1], src.rgb[i * 3 + 2], THREE.LinearSRGBColorSpace), 0);
+    }
+    return out;
+  };
+  const v = turn(vox, vids), s = turn(samp, sids);
+  const leaves = splitLeaves(v, v.key.map((_, i) => i), budget, opts);
+  const boxes = leaves.map((ids) => solidBox(v, ids, cellVol));
+  // colour: every surface sample to the box it is in, or nearest outside of
+  const sum = boxes.map(() => [0, 0, 0, 0]);
+  const all = [0, 0, 0, 0];
+  for (let i = 0; i < s.n; i++) {
+    let best = 0, bd = Infinity;
+    boxes.forEach((b, k) => {
+      let d = 0, dc = 0;
+      for (let a = 0; a < 3; a++) {
+        const o = Math.abs(s.xyz[i * 3 + a] - b.c[a]);
+        d += Math.max(0, o - b.s[a] / 2) ** 2;
+        dc += (o / b.s[a]) ** 2;
+      }
+      const score = d + dc * 1e-9;
+      if (score < bd) { bd = score; best = k; }
+    });
+    for (let a = 0; a < 3; a++) { sum[best][a] += s.rgb[i * 3 + a]; all[a] += s.rgb[i * 3 + a]; }
+    sum[best][3]++; all[3]++;
+  }
+  const q = R ? new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(R)) : null;
+  return boxes.map((b, k) => {
+    const w = sum[k][3] ? sum[k] : all[3] ? all : [0.5, 0.5, 0.5, 1];
+    const col = new THREE.Color(w[0] / w[3], w[1] / w[3], w[2] / w[3]).getHex();
+    const c = new THREE.Vector3(b.c[0], b.c[1], b.c[2]);
+    if (R) c.applyMatrix3(R);
+    return { c: c.toArray() as [number, number, number], s: b.s as [number, number, number], col, n: leaves[k].length, q, bound: b.bound };
+  });
+}
+
+/**
+ * `fitSolid` in whichever frame wraps the solid tighter: its own axes, or its
+ * principal axes (a sculpt can lie at a slant in its file, a spine bone
+ * carries a curved slab of back). Every box holds its cluster's volume either
+ * way; the frame is picked by how tightly the clusters' bounds fit.
+ */
+function fitSolidOriented(vox: Cloud, vids: number[], samp: Cloud, sids: number[], budget: number, cellVol: number,
+  opts: { accept?: number; minFrac?: number } = {}): Box[] {
+  const bound = (bs: Box[]): number => bs.reduce((s, b) => s + b.bound, 0);
+  const local = fitSolid(vox, vids, samp, sids, budget, cellVol, null, opts);
+  if (vids.length < 8) return local;
+  const oriented = fitSolid(vox, vids, samp, sids, budget, cellVol, principalAxes(vox, vids), opts);
+  return bound(oriented) < bound(local) * 0.85 ? oriented : local;
 }
 
 /**
@@ -671,8 +863,11 @@ async function measureChar(id: string, height: number): Promise<{ data: unknown;
   const lod = buildRig(p);
   lod.root.updateMatrixWorld(true);
   const lodAt = Object.fromEntries(BONES.map((b) => [b, lod.bones[b].getWorldPosition(new THREE.Vector3())])) as Record<BoneName, THREE.Vector3>;
-  const cloud = new Cloud();
+  const cloud = new Cloud();     // surface samples, in their bone's frame
+  const world = new Cloud();     // the same, in the model's frame
+  const tris: number[] = [];
   const cx = arm.x;   // the sculpt's own centre line, not assumed to be x = 0
+  const local = (pt: THREE.Vector3, b: BoneName): THREE.Vector3 => pt.clone().sub(lodAt[b]).setX(pt.x - cx - lodAt[b].x);
   eachVertex(model.root, rig.root, (pt, c, driver) => {
     let b = canon.get(driver) ?? null;
     if (!b) {
@@ -680,24 +875,124 @@ async function measureChar(id: string, height: number): Promise<{ data: unknown;
       for (let a: THREE.Object3D | null = driver; a && !b; a = a.parent) b = canon.get(a) ?? null;
       b ??= nearest(pt);
     }
-    cloud.push(pt.clone().sub(lodAt[b]).setX(pt.x - cx - lodAt[b].x), c, BONES.indexOf(b));
-  });
+    cloud.push(local(pt, b), c, BONES.indexOf(b));
+    world.push(pt, c, BONES.indexOf(b));
+  }, 40000, tris);
 
-  const byBone = new Map<number, number[]>();
-  cloud.key.forEach((k, i) => { let l = byBone.get(k); if (!l) byBone.set(k, l = []); l.push(i); });
+  // the solid, voxel by voxel, each voxel in the frame of the bone it goes to
+  const h = height / 130;
+  const solid = solidify(tris, world, h);
+  const vox = new Cloud();
+  const _p = new THREE.Vector3();
+  for (let i = 0; i < solid.n; i++) {
+    _p.set(solid.xyz[i * 3], solid.xyz[i * 3 + 1], solid.xyz[i * 3 + 2]);
+    vox.push(local(_p, BONES[solid.key[i]]), _t.setRGB(solid.w[i], 0, 0), solid.key[i]);
+  }
+
+  const byKey = (c: Cloud): Map<number, number[]> => {
+    const m = new Map<number, number[]>();
+    c.key.forEach((k, i) => { let l = m.get(k); if (!l) m.set(k, l = []); l.push(i); });
+    return m;
+  };
+  const byBone = byKey(cloud), voxByBone = byKey(vox);
   const parts: number[][] = [];
   const verts: Record<string, number> = {};
   const empty: string[] = [];
   BONES.forEach((b, bi) => {
     const ids = byBone.get(bi);
     if (!BONE_BUDGET[b]) return;
-    if (!ids?.length) { empty.push(b); return; }
+    const vids = voxByBone.get(bi);
+    if (!ids?.length || !vids?.length) { empty.push(b); return; }
     verts[b] = ids.length;
-    for (const box of fitBoxes(cloud, ids, BONE_BUDGET[b]!)) {
-      parts.push([bi, ...box.c.map(mm), ...box.s.map(mm), box.col]);
+    for (const box of fitSolid(vox, vids, cloud, ids, BONE_BUDGET[b]!, h * h * h, limbFrame(b, at))) {
+      parts.push([bi, ...box.c.map(mm), ...box.s.map(mm), box.col, ...turnOf(box.q)]);
     }
   });
+
+  // The crown: the box that reaches highest is the top of the head (or hat),
+  // and a head is round where a box is not — held to the same volume its box
+  // comes out a couple of centimetres short of the crown. Stretch it up to the
+  // sculpt's own top and draw it in to keep its volume, so the stand-in
+  // stands exactly as tall as the model.
+  let top = -Infinity;
+  for (let i = 1; i < tris.length; i += 3) top = Math.max(top, tris[i]);
+  const crown = parts.filter((r) => r.length < 12).reduce<number[] | null>((best, r) =>
+    (!best || lodAt[BONES[r[0]]].y + r[2] + r[5] / 2 > lodAt[BONES[best[0]]].y + best[2] + best[5] / 2 ? r : best), null);
+  if (crown) {
+    const y0 = lodAt[BONES[crown[0]]].y + crown[2] - crown[5] / 2;
+    const sy = top - y0;
+    if (sy > crown[5] && sy < crown[5] * 1.6) {
+      const k = Math.sqrt(crown[5] / sy);
+      crown[2] = mm(top - lodAt[BONES[crown[0]]].y - sy / 2);
+      crown[5] = mm(sy);
+      crown[4] = mm(crown[4] * k);
+      crown[6] = mm(crown[6] * k);
+    }
+  }
+
+  const standIn = (rows: number[][]): Reach => reach(rows.map((r) => ({
+    m: new THREE.Matrix4().makeTranslation(lodAt[BONES[r[0]]]), c: r.slice(1, 4), s: r.slice(4, 7), q: r.length >= 12 ? r.slice(8, 12) : null,
+  })));
+  const old = (OLD_LOD as unknown as { chars: Record<string, { parts: number[][] }> }).chars[id];
+  record(id, 'char', tris, solid, standIn(parts), old ? standIn(old.parts) : null);
   return { data: { h: height, p: PROPORTION_KEYS.map((k) => p[k] ?? 0), parts }, report: { id, height, p, verts, empty, joints, raw } };
+}
+
+/**
+ * The frame a limb bone's boxes are fitted in: turned from straight down (the
+ * way the stand-in's limbs hang at rest) onto the sculpt's own bone, so a
+ * forearm held a little out from the body gets a box along it, not one as
+ * wide as its slant. The torso, head, shoulders and feet stay square to the
+ * body. `at` is where the posed sculpt has each bone.
+ */
+const LIMB_TIP: Partial<Record<BoneName, [BoneName, BoneName]>> = {
+  upperArmL: ['upperArmL', 'forearmL'], forearmL: ['forearmL', 'handL'], handL: ['forearmL', 'handL'],
+  upperArmR: ['upperArmR', 'forearmR'], forearmR: ['forearmR', 'handR'], handR: ['forearmR', 'handR'],
+  upperLegL: ['upperLegL', 'lowerLegL'], lowerLegL: ['lowerLegL', 'footL'],
+  upperLegR: ['upperLegR', 'lowerLegR'], lowerLegR: ['lowerLegR', 'footR'],
+};
+function limbFrame(b: BoneName, at: (b: BoneName) => THREE.Vector3 | null): THREE.Matrix3 | null {
+  const ends = LIMB_TIP[b];
+  if (!ends) return null;
+  const from = at(ends[0]), to = at(ends[1]);
+  if (!from || !to) return null;
+  const d = to.clone().sub(from);
+  if (d.lengthSq() < 1e-8) return null;
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), d.normalize());
+  // a limb that hangs within a degree of straight down needs no turn
+  if (2 * Math.acos(Math.min(1, Math.abs(q.w))) < Math.PI / 180) return null;
+  return new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q));
+}
+
+const turnOf = (q: THREE.Quaternion | null): number[] => (q ? q.toArray().map((x) => Math.round(x * 10000) / 10000) : []);
+
+// ---------------------------------------------------------------- the check
+/** how much the boxes hold, and how high and low they reach, in the measuring frame */
+interface Reach { vol: number; top: number; bottom: number }
+function reach(boxes: Array<{ m: THREE.Matrix4; c: number[]; s: number[]; q: number[] | null }>): Reach {
+  let vol = 0, top = -Infinity, bottom = Infinity;
+  const p = new THREE.Vector3(), q = new THREE.Quaternion();
+  for (const b of boxes) {
+    vol += b.s[0] * b.s[1] * b.s[2] * Math.abs(b.m.determinant());
+    if (b.q) q.set(b.q[0], b.q[1], b.q[2], b.q[3]); else q.identity();
+    for (let k = 0; k < 8; k++) {
+      p.set((k & 1 ? 0.5 : -0.5) * b.s[0], (k & 2 ? 0.5 : -0.5) * b.s[1], (k & 4 ? 0.5 : -0.5) * b.s[2])
+        .applyQuaternion(q).add(_v.set(b.c[0], b.c[1], b.c[2])).applyMatrix4(b.m);
+      top = Math.max(top, p.y); bottom = Math.min(bottom, p.y);
+    }
+  }
+  return { vol, top, bottom };
+}
+
+/** per model: the solid it encloses against the stand-in's boxes, now and as the file had them */
+export interface LodStat { id: string; kind: string; h: number; solid: number; surfFrac: number; top: number; bottom: number; now: Reach; was: Reach | null }
+const stats: LodStat[] = [];
+function record(id: string, kind: string, tris: number[], solid: Solid, now: Reach, was: Reach | null): void {
+  let top = -Infinity, bottom = Infinity;
+  for (let i = 1; i < tris.length; i += 3) { top = Math.max(top, tris[i]); bottom = Math.min(bottom, tris[i]); }
+  const st: LodStat = { id, kind, h: solid.h, solid: solid.vol, surfFrac: solid.surfFrac, top, bottom, now, was };
+  stats.push(st);
+  log(`  ${id}: solid ${st.solid.toFixed(4)} m³ (surface ${(solid.surfFrac * 100).toFixed(0)}%), boxes ${(now.vol / st.solid).toFixed(2)}x${was ? ` (was ${(was.vol / st.solid).toFixed(2)}x)` : ''}, top ${top.toFixed(3)} → ${now.top.toFixed(3)}${was ? ` (was ${was.top.toFixed(3)})` : ''}`);
 }
 
 // ---------------------------------------------------------------- props
@@ -714,41 +1009,31 @@ function loadHeld(id: string, size: number, opts: { axis?: 'x' | 'y' | 'z' | 'lo
 }
 
 async function measureRigid(id: string, size: number, opts: { axis?: 'x' | 'y' | 'z' | 'longest'; ground?: boolean }, budget: number,
-  fit: Parameters<typeof fitBoxes>[3] = { accept: 0.95, minFrac: 0.03, trim: 0.004 }): Promise<unknown> {
+  fit: { accept?: number; minFrac?: number } = { accept: 0.95, minFrac: 0.03 }): Promise<unknown> {
   const held = await loadHeld(id, size, opts);
   if (!held) return null;
   const cloud = new Cloud();
-  eachVertex(held.root, held.holder, (pt, c) => cloud.push(pt, c, 0));
-  const ids = cloud.key.map((_, i) => i);
-  const { boxes, q } = fitOriented(cloud, ids, budget, fit);
-  const turn = q ? q.toArray().map((x) => Math.round(x * 10000) / 10000) : [];
-  return { parts: boxes.map((b) => [...b.c.map(mm), ...b.s.map(mm), b.col, ...turn]) };
+  const tris: number[] = [];
+  eachVertex(held.root, held.holder, (pt, c) => cloud.push(pt, c, 0), 40000, tris);
+  const h = voxelSize(tris);
+  const solid = solidify(tris, cloud, h, PROP_CLOSE);
+  const vox = new Cloud();
+  for (let i = 0; i < solid.n; i++) vox.push(_v.fromArray(solid.xyz, i * 3), _t.setRGB(solid.w[i], 0, 0), 0);
+  const boxes = fitSolidOriented(vox, vox.key.map((_, i) => i), cloud, cloud.key.map((_, i) => i), budget, h ** 3, fit);
+  const parts = boxes.map((b) => [...b.c.map(mm), ...b.s.map(mm), b.col, ...turnOf(b.q)]);
+  const I = new THREE.Matrix4();
+  const standIn = (rows: number[][]): Reach => reach(rows.map((r) => ({ m: I, c: r.slice(0, 3), s: r.slice(3, 6), q: r.length >= 11 ? r.slice(7, 11) : null })));
+  const old = (OLD_LOD as unknown as { props: Record<string, { parts: number[][] }> }).props[id];
+  record(id, 'prop', tris, solid, standIn(parts), old ? standIn(old.parts) : null);
+  return { parts };
 }
 
 /**
- * Boxes around a cloud in whichever frame wraps it tighter: its own axes, or
- * its principal axes (a sculpt can lie at a slant in its file, a spine bone
- * carries a curved slab of back). Centres come back in the cloud's own frame;
- * `q` is the turn of the boxes when they were fitted in the principal frame.
+ * How many voxels a prop's or creature's surface is thickened by before the
+ * outside is flooded: hard-surface sculpts are kit-bashed from open panels, and
+ * a gap a couple of voxels wide would otherwise let the flood hollow them out.
  */
-function fitOriented(cloud: Cloud, ids: number[], budget: number, opts: Parameters<typeof fitBoxes>[3] = {}):
-  { boxes: Box[]; q: THREE.Quaternion | null } {
-  const volumeOf = (bs: Box[]): number => bs.reduce((s, b) => s + b.s[0] * b.s[1] * b.s[2], 0);
-  const local = fitBoxes(cloud, ids, budget, opts);
-  const R = principalAxes(cloud, ids);
-  const Rt = R.clone().transpose();
-  const turned = new Cloud();
-  const p = new THREE.Vector3(), c = new THREE.Color();
-  for (const i of ids) {
-    p.set(cloud.xyz[i * 3], cloud.xyz[i * 3 + 1], cloud.xyz[i * 3 + 2]).applyMatrix3(Rt);
-    turned.push(p, c.setRGB(cloud.rgb[i * 3], cloud.rgb[i * 3 + 1], cloud.rgb[i * 3 + 2], THREE.LinearSRGBColorSpace), 0);
-  }
-  const oriented = fitBoxes(turned, turned.key.map((_, i) => i), budget, opts);
-  if (!(volumeOf(oriented) < volumeOf(local) * 0.85)) return { boxes: local, q: null };
-  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().setFromMatrix3(R));
-  for (const b of oriented) b.c = new THREE.Vector3(...b.c).applyMatrix3(R).toArray() as [number, number, number];
-  return { boxes: oriented, q };
-}
+const PROP_CLOSE = 2;
 
 /**
  * A creature: its skeleton as delivered (so the code-built gaits can be
@@ -788,7 +1073,9 @@ async function measureCreature(id: string, size: number, opts: { axis?: 'x' | 'y
     }
   }
 
-  const cloud = new Cloud();
+  const cloud = new Cloud();   // surface samples, each in its node's frame
+  const flat = new Cloud();    // the same, in the holder's frame
+  const tris: number[] = [];
   const inv = nodes.map((n) => n.matrixWorld.clone().invert());
   const holderInv = holder.matrixWorld.clone().invert();
   const eggPts: THREE.Vector3[][] = Array.from({ length: BROOD_EGG_RACK }, () => []);
@@ -798,11 +1085,11 @@ async function measureCreature(id: string, size: number, opts: { axis?: 'x' | 'y
     let k = -1;
     for (let a: THREE.Object3D | null = driver; a && k < 0; a = a.parent) k = index.get(a) ?? -1;
     if (k < 0) k = 0;
+    flat.push(pt, c, k);
     // into the node's own frame (pt is in the holder's frame)
     const w = pt.clone().applyMatrix4(holder.matrixWorld);
     cloud.push(w.applyMatrix4(inv[k]), c, k);
-  });
-  void holderInv;
+  }, 40000, tris, eggOf ? (mesh, i) => eggOf!(mesh, i) >= 0 : undefined);
   if (eggs) eggs.forEach((e, i) => {
     const pts = eggPts[i];
     if (!pts.length) return;
@@ -832,13 +1119,34 @@ async function measureCreature(id: string, size: number, opts: { axis?: 'x' | 'y
     }
     let l = groups.get(to); if (!l) groups.set(to, l = []); l.push(i);
   });
+  // the solid, each voxel in the frame of the node its surface went to
+  const h = voxelSize(tris);
+  const solid = solidify(tris, flat, h, PROP_CLOSE);
+  const vox = new Cloud();
+  const toNode = nodes.map((_, k) => inv[k].clone().multiply(holder.matrixWorld));
+  const voxGroups = new Map<number, number[]>();
+  for (let i = 0; i < solid.n; i++) {
+    const to = resolve(solid.key[i]);
+    vox.push(_v.fromArray(solid.xyz, i * 3).applyMatrix4(toNode[to]), _t.setRGB(solid.w[i], 0, 0), to);
+    let l = voxGroups.get(to); if (!l) voxGroups.set(to, l = []); l.push(i);
+  }
   const parts: number[][] = [];
   for (const [k, ids] of groups) {
+    const vids = voxGroups.get(k);
+    if (!vids?.length) continue;
     const budget = ids.length > cloud.n * 0.15 ? 5 : ids.length > cloud.n * 0.05 ? 3 : ids.length > cloud.n * 0.02 ? 2 : 1;
-    const { boxes, q } = fitOriented(cloud, ids, budget);
-    const turn = q ? q.toArray().map((x) => Math.round(x * 10000) / 10000) : [];
-    for (const b of boxes) parts.push([k, ...b.c.map(sig), ...b.s.map(sig), b.col, ...turn]);
+    // a voxel's volume in the node's own units (a node can carry a scale)
+    const cellVol = h ** 3 * Math.abs(toNode[k].determinant());
+    for (const b of fitSolidOriented(vox, vids, cloud, ids, budget, cellVol)) {
+      parts.push([k, ...b.c.map(sig), ...b.s.map(sig), b.col, ...turnOf(b.q)]);
+    }
   }
+  const toHolder = nodes.map((n) => holderInv.clone().multiply(n.matrixWorld));
+  const standIn = (rows: number[][]): Reach => reach(rows.map((r) => ({
+    m: toHolder[r[0]], c: r.slice(1, 4), s: r.slice(4, 7), q: r.length >= 12 ? r.slice(8, 12) : null,
+  })));
+  const old = (OLD_LOD as unknown as { creatures: Record<string, { parts: number[][] }> }).creatures[id];
+  record(id, 'creature', tris, solid, standIn(parts), old ? standIn(old.parts) : null);
   const t = (n: THREE.Object3D): number[] => [
     ...n.position.toArray().map(sig), ...n.quaternion.toArray().map((x) => Math.round(x * 10000) / 10000),
     sig(n.scale.x), sig(n.scale.y), sig(n.scale.z),
@@ -899,11 +1207,11 @@ async function main(): Promise<void> {
     // weapon's settings the swoop came out as six boxes whose top stood a
     // hand over the real saddle.
     const r = await measureRigid(def.modelId, def.modelSize ?? def.length, { axis: def.modelAxis ?? 'longest', ground: def.modelGround }, 14,
-      { accept: 0.99, minFrac: 0.01, trim: 0.004 });
+      { accept: 0.99, minFrac: 0.01 });
     if (r) { out.props[def.modelId] = r; log(`vehicle ${def.modelId}: ${(r as { parts: unknown[] }).parts.length} parts`); }
   }
 
-  (window as unknown as { __lod: unknown }).__lod = { data: out, reports };
+  (window as unknown as { __lod: unknown }).__lod = { data: out, reports, stats };
 }
 
 main().catch((err) => {

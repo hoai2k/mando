@@ -27,8 +27,11 @@ export class Grid {
  * border, and whatever the fill cannot reach is solid; the thickening is then
  * taken back off. Works on meshes with small holes; a mesh open along a big
  * edge (a coat's hem) simply has no inside there, which is what we want.
+ * `close` is how many voxels the surface is thickened by: holes up to about
+ * twice that wide are sealed.
  */
-export function voxelize(T, h, margin = 4) {
+export function voxelize(T, h, margin = 4, close = 1) {
+  margin = Math.max(margin, close + 2);
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < T.length; i++) { const k = i % 3; if (T[i] < mn[k]) mn[k] = T[i]; if (T[i] > mx[k]) mx[k] = T[i]; }
   const n = [0, 1, 2].map((k) => Math.ceil((mx[k] - mn[k]) / h) + 1 + margin * 2);
@@ -50,7 +53,7 @@ export function voxelize(T, h, margin = 4) {
       }
     }
   }
-  const thick = dilate6(g, surf, 1);
+  const thick = dilate6(g, surf, close);
   // flood the outside through everything the thickened surface leaves open
   const out = new Uint8Array(g.size);
   const stack = new Int32Array(g.size);
@@ -67,7 +70,7 @@ export function voxelize(T, h, margin = 4) {
   // solid = not outside, less the one voxel of thickening
   const notOut = new Uint8Array(g.size);
   for (let v = 0; v < g.size; v++) notOut[v] = out[v] ? 0 : 1;
-  const solid = erode6(g, notOut, 1);
+  const solid = erode6(g, notOut, close);
   for (let v = 0; v < g.size; v++) if (surf[v] && notOut[v]) solid[v] = 1;
   return { grid: g, solid, surf };
 }

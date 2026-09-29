@@ -12,9 +12,10 @@ import { generatedClips } from './authored';
  * are gone. What stands in for an authored model now — while its .glb is
  * still downloading, in the workbench's "Procedural" view, on an
  * `authored: false` build — is that same model at a very low level of detail:
- * a few boxes per bone, each around the vertices that bone drives in the
- * sculpt, in the sculpt's own average colour, on a rig with the sculpt's own
- * joint positions. `tools/asset-pipeline/measure-lod.mjs` measures all of it
+ * a few boxes per bone, each standing for the solid volume that bone drives
+ * in the sculpt (same volume, same centre, same proportions — not a hull
+ * around it), in the sculpt's own average colour, on a rig with the sculpt's
+ * own joint positions. `tools/asset-pipeline/measure-lod.mjs` measures all of it
  * into `data/lod.json`; re-run it whenever a model changes.
  *
  * Three kinds of stand-in come out of it:
@@ -119,8 +120,10 @@ export function buildLodBody(game: Rig, id: string, height: number): LodBody {
   // Its bones answer to names of their own: code and checks that look a bone
   // up by name on a character mean the game rig's.
   for (const b of BONES) rig.bones[b].name = `lod_${b}`;
-  for (const [bi, cx, cy, cz, sx, sy, sz, color] of d.parts) {
-    addPart(rig.bones[BONES[bi]], cx, cy, cz, sx, sy, sz, color, k);
+  for (const [bi, cx, cy, cz, sx, sy, sz, color, qx, qy, qz, qw] of d.parts) {
+    const part = addPart(rig.bones[BONES[bi]], cx, cy, cz, sx, sy, sz, color, k);
+    // a limb's boxes lie along the sculpt's own bone, which need not hang straight down
+    if (qw !== undefined) part.quaternion.set(qx, qy, qz, qw);
   }
   game.root.add(rig.root);
 

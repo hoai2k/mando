@@ -21,7 +21,10 @@
  *
  *   CHROMIUM_PATH=... node tools/asset-pipeline/measure-lod.mjs [id,id,...]
  *
- * With ids, only those entries are re-measured and merged into the file.
+ * With ids, only those entries are re-measured and merged into the file. It
+ * ends with a table of every model's solid volume against its stand-in's box
+ * volume and height, now and as the file had them (LOD_STATS=path.json keeps
+ * the same as JSON).
  */
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -137,6 +140,15 @@ try {
       }])),
     }, null, 1)}\n`);
     console.log(`wrote ${AUDIT}`);
+  }
+  // how the stand-ins measure up: box volume against the solid the model
+  // encloses, and how high they reach against the model's own top
+  if (process.env.LOD_STATS) await writeFile(process.env.LOD_STATS, JSON.stringify(result.stats, null, 1));
+  const f = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '–');
+  console.log('\nmodel                      kind      solid m³   boxes/solid (was)   top m  stand-in (was)   bottom m  stand-in (was)');
+  for (const s of result.stats) {
+    console.log(`${s.id.padEnd(26)} ${s.kind.padEnd(9)} ${f(s.solid, 4).padStart(9)}   ${f(s.now.vol / s.solid).padStart(5)} (${s.was ? f(s.was.vol / s.solid) : '–'})`.padEnd(70)
+      + `${f(s.top, 3).padStart(6)}  ${f(s.now.top, 3)} (${s.was ? f(s.was.top, 3) : '–'})    ${f(s.bottom, 3).padStart(6)}  ${f(s.now.bottom, 3)} (${s.was ? f(s.was.bottom, 3) : '–'})`);
   }
   for (const r of result.reports) {
     const p = Object.entries(r.p).map(([k, v]) => `${k} ${v}`).join(', ');
