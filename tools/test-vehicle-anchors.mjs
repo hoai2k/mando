@@ -13,7 +13,10 @@
 import { launch, makeCheck } from './harness.mjs';
 import { readFileSync } from 'node:fs';
 /** Din's left palm, from his wrist (src/characters/data/handAnchors.json) */
-const DIN_PALM = JSON.parse(readFileSync(new URL('../src/characters/data/handAnchors.json', import.meta.url), 'utf8')).din?.left ?? [0, -0.05, 0.02];
+const PALMS = JSON.parse(readFileSync(new URL('../src/characters/data/handAnchors.json', import.meta.url), 'utf8'));
+const DIN_PALM = PALMS.din?.left ?? [0, -0.05, 0.02];
+/** the Nikto's left palm, if one is placed (else his palm frame's origin) */
+const NIKTO_PALM = PALMS.nikto?.left ?? [0, -0.05, 0.02];
 
 const check = makeCheck();
 const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
@@ -191,11 +194,14 @@ await h.workbench('nikto', 'creatureIdle');
 // seated, and his hands put on the bars, once his sculpt and the bike's have landed
 await page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(), undefined, { timeout: 120000 });
 await page.waitForTimeout(400);
-const niktoHand = await page.evaluate(([edited, committed]) => {
+const niktoHand = await page.evaluate(([edited, committed, palm]) => {
   const r = window.__wb.figures[0].inst.root.userData.niktoRider;
   r.bike.updateMatrixWorld(true);
-  // a grip is where the palm goes: his palm frame's origin (he has no palm placed of his own)
-  const hand = (r.rider.getObjectByName('palmFrameL') ?? r.rider.getObjectByName('handL')).getWorldPosition(r.bike.position.clone());
+  // a grip is where the palm goes: his palm point, on the palm frame (whose origin is the default palm)
+  const frame = r.rider.getObjectByName('palmFrameL');
+  const hand = frame
+    ? frame.localToWorld(r.bike.position.clone().set(palm[0], palm[1] + 0.05, palm[2] - 0.02))
+    : r.rider.getObjectByName('handL').getWorldPosition(r.bike.position.clone());
   // the swoop's frame to his bike's: the same sculpt hangs 0.385 m lower on his
   const at = (g) => r.bike.localToWorld(r.bike.position.clone().set(g[0], g[1] - 0.385, g[2]));
   const own = r.bike.localToWorld(r.bike.position.clone().set(...r.grip));
@@ -203,7 +209,7 @@ const niktoHand = await page.evaluate(([edited, committed]) => {
     edited: +hand.distanceTo(at(edited)).toFixed(3), committed: +hand.distanceTo(at(committed)).toFixed(3),
     own: +hand.distanceTo(own).toFixed(3), hasOwn: Math.abs(r.grip[1] - (edited[1] - 0.385)) > 1e-3,
   };
-}, [[grip[0], grip[1], grip[2] + 0.1], grip]);
+}, [[grip[0], grip[1], grip[2] + 0.1], grip, NIKTO_PALM]);
 check(niktoHand.hasOwn ? 'the Nikto\'s hand holds his own grip on the bars'
   : 'the Nikto\'s hand follows the swoop\'s grip as edited this session',
 niktoHand.hasOwn ? niktoHand.own < 0.01 : niktoHand.edited < 0.15 && niktoHand.edited < niktoHand.committed, niktoHand);

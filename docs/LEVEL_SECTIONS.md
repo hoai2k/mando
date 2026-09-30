@@ -367,7 +367,8 @@ prize" becomes the frigate's hangar deck, reached at the end.
 **Layout.** The frigate's dorsal hull (`spice_run_frigate`) as a 70 × 22 m deck
 under the stars — a treadmill arena (K2): asteroids, station debris and the
 station itself scroll away behind. **Four quad-gun turrets** (K3) in a diamond on
-the hull, each with a 200° arc. Three **boarding points** along the hull edges
+the hull, each coming all the way round (a ship that has gone past can be
+followed as it turns to come back), its barrels held over the other guns. Three **boarding points** along the hull edges
 where pirate dropships latch. Two hull hatches lead down to the hangar deck.
 
 **How it plays.**

@@ -79,6 +79,16 @@ export class ProjectileSystem {
   private glowPlayer = new THREE.MeshBasicMaterial({ color: 0xff4a22, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   private glowEnemy = new THREE.MeshBasicMaterial({ color: 0x55ff44, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   onImpact: ((p: THREE.Vector3, hitTarget: boolean, team: number) => void) | null = null;
+  /**
+   * Crossfire (Guns of the Frigate): bolts this says yes to are also stopped
+   * by the firer's own team — any player but the one who fired — and a
+   * friendly caught by one goes to `onCrossfire` instead of taking the hit
+   * (the section decides what a quad gun does to a person). A friendly's
+   * blades or shield still turn it, like any bolt. Null everywhere else, so
+   * friendly fire stays off.
+   */
+  crossfire: ((tag: string | undefined, bySlot: number) => boolean) | null = null;
+  onCrossfire: ((slot: number, dir: THREE.Vector3, at: THREE.Vector3, damage: number) => void) | null = null;
   onDeflect: ((p: THREE.Vector3, normal: THREE.Vector3) => void) | null = null;
 
   constructor() {
@@ -213,8 +223,12 @@ export class ProjectileSystem {
       // deflection first: a shield in the way is what the bolt meets, and it
       // has to be tested before the body it is covering
       let deflected = false;
+      // a crossfire bolt meets the party's own too (see `crossfire`)
+      const cross = this.crossfire?.(b.tag, b.bySlot) ?? false;
+      const meets = (t: BoltTarget): boolean => t.team !== b.team
+        || (cross && t.slot !== undefined && t.slot !== b.bySlot);
       for (const t of targets) {
-        if (!t.alive || t.team === b.team || !t.shield) continue;
+        if (!t.alive || !meets(t) || !t.shield) continue;
         const sh = t.shield;
         // only the outward face blocks — you cannot shelter behind your own back
         const face = -dir.dot(sh.normal);
@@ -228,6 +242,7 @@ export class ProjectileSystem {
         else b.vel.reflect(sh.normal);
         b.team = t.team;
         b.bySlot = t.slot ?? -1;   // a kill off a good block belongs to the blocker
+        b.tag = undefined;         // turned by a friend, it is nobody's crossfire now
         // a blade loses the bolt nothing; a pane scatters some of it
         b.damage *= sh.kind === 'saber' ? 1 : 0.75;
         b.life = Math.min(b.life, 1.6);
@@ -247,9 +262,10 @@ export class ProjectileSystem {
       // hit targets: segment vs sphere
       let hit = false;
       for (const t of targets) {
-        if (!t.alive || t.team === b.team) continue;
+        if (!t.alive || !meets(t)) continue;
         if (segSphere(from, dir, reach, t.position, t.radius)) {
-          t.onHit(b.damage, from, b.bySlot, b.tag);
+          if (t.team === b.team) this.onCrossfire?.(t.slot!, dir.clone(), from.clone(), b.damage);
+          else t.onHit(b.damage, from, b.bySlot, b.tag);
           this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;

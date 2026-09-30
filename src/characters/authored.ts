@@ -12,7 +12,8 @@ import { ASSET_ROOT, modelDir } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
-import { applyFistRig } from './fistRig';
+import { applyFistRig, seatFistsOnPalms } from './fistRig';
+import { palmOf, palmPlaced, type HandSide } from './handAnchors';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
@@ -573,6 +574,15 @@ export const ENEMY_MODELS = {
 
 /** a kind whose authored skin rides the canonical rig, at a fitted height */
 export type HumanoidKind = keyof typeof HUMANOID_MODELS;
+
+/**
+ * Whose placed palm a sculpt's fist is seated from: the character named for
+ * it (a hero), or the first enemy kind wearing it that has one placed.
+ */
+function palmOwner(model: string, side: HandSide): string | null {
+  const wearers = [model, ...Object.entries(HUMANOID_MODELS).filter(([, m]) => m.model === model).map(([kind]) => kind)];
+  return wearers.find((who) => palmPlaced(who, side)) ?? null;
+}
 /** the basename of a .glb some enemy kind is made of */
 export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['model'];
 /**
@@ -839,6 +849,11 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   // holds none, and the palm is wanted in every pose
   handMount('handR', 'palmFrameR');
   handMount('handL', 'palmFrameL');
+  // the fists' knuckles, seated from the palms placed for this sculpt's character
+  seatFistsOnPalms(id, root, (side) => {
+    const who = palmOwner(id, side);
+    return who ? palmOf(who, side) : null;
+  });
   const hip = nodes.find((n) => n.canonical === 'hips');
   const holsterMount = hip ? new THREE.Group() : null;
   if (hip && holsterMount) {

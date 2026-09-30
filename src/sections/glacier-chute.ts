@@ -408,7 +408,9 @@ function build(ctx: SectionContext): SectionInstance {
   // (z = 0 is the face: the surface runs up to the glacier top behind it).
   {
     const y = YT;
-    ctx.box(0, y + 2.1, 0.25, 3.6, 4.2, 0.5, metal);                  // the door leaf, shut behind them
+    // the door leaf, shut behind them: frame to frame and up to the lintel,
+    // so no slot of the ice behind shows over it
+    ctx.box(0, y + 2.3, 0.25, 3.6, 4.6, 0.5, metal);
     ctx.box(-2.1, y + 2.4, 0.4, 0.6, 4.8, 0.8, darkMat);             // the frame
     ctx.box(2.1, y + 2.4, 0.4, 0.6, 4.8, 0.8, darkMat);
     ctx.box(0, y + 4.9, 0.4, 4.8, 0.6, 0.8, darkMat);

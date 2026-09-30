@@ -333,7 +333,8 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   ctx.box(hutAt.x + 0.6, Y0 + 1.8, hutAt.z - 2.6, 1.2, 3.6, 1.2, facadeMat);   // jambs
   ctx.box(hutAt.x + 0.6, Y0 + 1.8, hutAt.z + 2.6, 1.2, 3.6, 1.2, facadeMat);
   ctx.box(hutAt.x - 0.4, Y0 + 3.9, hutAt.z, 5.2, 0.6, 6.8, darkMat);             // its roof
-  ctx.box(hutAt.x + 0.9, Y0 + 1.6, hutAt.z, 0.2, 3.2, 4, metalMat);             // the door, shut
+  // the door, shut: jamb to jamb and up to the roof, no slot over it
+  ctx.box(hutAt.x + 0.9, Y0 + 1.8, hutAt.z, 0.2, 3.6, 4, metalMat);
   const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.4), warm);
   exitSign.position.set(hutAt.x + 1.02, Y0 + 3.45, hutAt.z);
   exitSign.rotation.y = Math.PI / 2;

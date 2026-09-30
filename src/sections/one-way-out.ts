@@ -349,6 +349,9 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.box(0, fy, (HZ + coreZ0 + 4) / 2, STAIR_W + 2, slabT, coreZ0 + 4 - HZ, apronMat);
   for (const sx of [-1, 1]) ctx.box(sx * (STAIR_W / 2 + 0.5), Y0 + 6, coreZ0 + coreLen / 2, 1, 14, coreLen, wallMat);
   ctx.box(0, Y0 + 6, coreZ0 + coreLen + 0.5, STAIR_W + 2, 14, 1, wallMat);
+  // its ceiling, level with the hall's: without it the doorway showed the sky
+  // over the stairwell and the light strip hanging in nothing
+  ctx.box(0, Y0 + ROOF + 0.5, coreZ0 + (coreLen + 1) / 2, STAIR_W + 2, 1, coreLen + 1, wallMat);
   const steps = 14;
   for (let k = 0; k < steps; k++) {
     const h = (k + 1) * 0.5;

@@ -205,3 +205,27 @@ and `sectionMove` on teardown).
 - **The start.** The gantry wall behind the cage is drawn one-sided (visible from the
   ring) so the rail camera can start behind it. A player who turns round sees the
   shut red door, which is correct. Its collider is a normal box.
+
+## Doors set solidly into their walls (2026-09-29, from a playtest)
+
+A Spice Run door showed see-through space round its rim. The cause was shared by every mission
+door. A wall's opening is cut bigger than the door frame put in it: a transport door's face is
+cut 6.4 m wide and 6–8 m tall, and a hall's doorway is 3.8 m wide and up to 8 m tall. The frame
+(`world/corridor.ts`) is 3.7 m across and 3.8 m high, and its posts and head are solid. The leaves
+were sized to the whole cut, so a shut door hid the rim, and the moment it opened there were slits
+beside the posts and an open band over the head, looking into the pocket and the sky behind it.
+
+- `buildDoorFrame(…, { opening })` now builds a **collar**: solid steel, with colliders, filling
+  the cut round the frame (beside the posts, floor to top, and over the head). `Gate` passes the
+  opening its wall cut (by default its own width at its full height; `Portal` passes the transport
+  face's GATE_W + 2.6). The leaves now fill only the frame's clear opening (`DOOR_CLEAR`, 2.7 ×
+  3.18 m), which was already all a body could walk through, so no clearance changed. Retracted
+  leaves hide inside the collar.
+- A photo pass of every territory's transport doors and hall doors (shut and open) found nothing
+  left showing through.
+- The section-built doors were audited separately, and four had their own gaps, now fixed:
+  - Glacier Chute: the start door's leaf stopped 0.4 m short of its lintel.
+  - One Way Out: the stair core behind its doorway had no roof, so sky showed through.
+  - The Lift: the deck gate's glow panel left 0.1 m slits onto the sea.
+  - The Mark Runs: the stair-head door stopped 0.4 m under the roof.
+- The Ring Walk's and the frigate's own doors were checked and are closed.

@@ -7,8 +7,10 @@ import data from './data/handAnchors.json';
  * workbench (Weapon grips → Hand anchors) and exported to
  * `data/handAnchors.json`.
  *
- * A palm is a point in metres from the sculpt's own wrist, along the axes our
- * rig's hand has at rest (the fingers down its -Y), carried by the sculpt's
+ * A palm is the mark on the palm's own skin where the fingers start (the
+ * fist's knuckles are seated from it, `fistRig.ts`): a point in metres from
+ * the sculpt's own wrist, along the axes our rig's hand has at rest (the
+ * fingers down its -Y), carried by the sculpt's
  * hand bone (`palmFrameL`/`palmFrameR`, beside the weapon mounts in
  * `authored.ts`). It rides with the hand as it is drawn, so one placement
  * holds in every pose. (It used to live on the rig's own hand, which the
@@ -35,6 +37,10 @@ const key = (side: HandSide): keyof HandPair => (side === 'L' ? 'left' : 'right'
 export function palmOf(id: string, side: HandSide): THREE.Vector3 {
   const v = workbench.get(id)?.[key(side)] ?? deployed[id]?.[key(side)] ?? DEFAULT_PALM;
   return new THREE.Vector3(...v);
+}
+/** Whether a character's palm on this hand has been placed (in this page or the file), rather than left at the weapon point. */
+export function palmPlaced(id: string, side: HandSide): boolean {
+  return !!(workbench.get(id)?.[key(side)] ?? deployed[id]?.[key(side)]);
 }
 /** the deployed palm, before any workbench edit */
 export function deployedPalm(id: string, side: HandSide): THREE.Vector3 {
