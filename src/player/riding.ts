@@ -148,6 +148,7 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   const speed = Math.hypot(v.vel.x, v.vel.z);
   this.cam.update(realDt, this.position, game.board.physics, {
     aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,
+    velX: v.vel.x, velZ: v.vel.z,
   });
   // K3: a turret's gunner sees down the barrels (and gets the crosshair)
   if (v.def.turret) { this.aiming = true; v.applySight(this); }

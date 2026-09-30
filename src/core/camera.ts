@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { clamp, damp, dampAngle, yawBasis } from './math';
 import { config } from '../config';
 import { rayCylinder, type PhysicsWorld, type StaticCylinder } from './physics';
+import cameraTuning from './data/cameraTuning.json';
 
 /**
  * Default chase distance, and the range the right-stick dolly can set.
@@ -83,27 +84,25 @@ const CAM_GROUND_CLEAR = 0.4;
 // The chase distance is the dialled-in `baseDist` times a pace multiplier, so
 // the right-stick dolly still scales both ends of the range together: pull the
 // camera out and the close mode is proportionally closer, not fixed.
-/** multiplier at a standstill — intimate, reads the character and their footing */
-const NEAR_RATIO = 0.86;   // was 0.74: at 1.4 m the helmet sat under every banner
-/** multiplier at full tilt — wide, reads where you are going and what is in the way */
-const FAR_RATIO = 1.34;
-/** below this ground speed the pace reads as "still"; at or above HOT it is fully out */
-const CALM_SPEED = 2.4;
-const HOT_SPEED = 13;
-/** climb/dive counts alongside ground speed while airborne, at this weight */
-const CLIMB_WEIGHT = 0.7;
-/** flight and dashes are salient on their own, whatever the speedometer says */
-const FLYING_FLOOR = 0.5;
-const DASH_FLOOR = 0.85;
-/**
- * Widening chases the action (you accelerate, the camera is already there);
- * closing lags well behind it, so tapping the stick in a firefight or clipping
- * a wall mid-sprint doesn't pump the camera in and out.
- */
-const OPEN_LAMBDA = 3.6;
-const CLOSE_LAMBDA = 1.15;
-/** ...and a stop is not believed at all for this long, for the same reason */
-const CLOSE_HOLD = 0.4;
+//
+// Every number here lives in data/cameraTuning.json, so the framing can be
+// tuned without touching code:
+//  - nearRatio / farRatio: the multiplier at a standstill (intimate, reads the
+//    character and their footing) and at full tilt (wide, reads where you are
+//    going and what is in the way);
+//  - calmSpeed / hotSpeed: the ground speeds that map to those two ends, with
+//    the pace running smoothly between them;
+//  - towardExtra / towardFullSpeed: a further pull-back while running at the
+//    lens, full at that closing speed — a body coming at the camera otherwise
+//    fills the frame and hides what it is running from;
+//  - climbWeight: airborne climb/dive counted alongside ground speed;
+//  - flyingFloor / dashFloor: flight and dashes are wide on their own;
+//  - openLambda / closeLambda / closeHold: widening chases the action (you
+//    accelerate, the camera is already there); closing lags well behind it,
+//    and a stop is not believed at all for closeHold seconds, so tapping the
+//    stick in a firefight or clipping a wall mid-sprint doesn't pump the
+//    camera in and out.
+const T = cameraTuning;
 
 /** Smooth ease so the multiplier has no corners at either end of its travel. */
 function smoothstep(t: number): number { return t * t * (3 - 2 * t); }
@@ -120,6 +119,9 @@ export interface CameraMotion {
   climb?: number;
   /** follow a ducking body below a low overhead collider */
   crouching?: boolean;
+  /** horizontal velocity, m/s: running at the lens pulls the camera further back */
+  velX?: number;
+  velZ?: number;
 }
 
 /** Third-person orbit camera with collision, aim zoom, and shake. */
@@ -138,6 +140,9 @@ export class ThirdPersonCamera {
   private pace = 0;
   /** countdown that keeps the pace from falling right after it last rose */
   private paceHold = 0;
+  /** eased 0-1 share of the pull-back for running toward the camera */
+  private toward = 0;
+  private towardHold = 0;
   /** first frame snaps to its framing rather than drifting out of the default */
   private framed = false;
   private fov = 72;
@@ -277,11 +282,28 @@ export class ThirdPersonCamera {
    * for the states that are wide on their own.
    */
   private paceTarget(opts: CameraMotion): number {
-    const travel = opts.speed + Math.abs(opts.climb ?? 0) * CLIMB_WEIGHT;
-    let want = clamp((travel - CALM_SPEED) / (HOT_SPEED - CALM_SPEED), 0, 1);
-    if (opts.flying) want = Math.max(want, FLYING_FLOOR);
-    if (opts.dashing) want = Math.max(want, DASH_FLOOR);
+    const travel = opts.speed + Math.abs(opts.climb ?? 0) * T.climbWeight;
+    let want = clamp((travel - T.calmSpeed) / Math.max(T.hotSpeed - T.calmSpeed, 0.01), 0, 1);
+    if (opts.flying) want = Math.max(want, T.flyingFloor);
+    if (opts.dashing) want = Math.max(want, T.dashFloor);
     return want;
+  }
+
+  /**
+   * How much of the toward-the-lens pull-back this frame wants, 0-1: the
+   * velocity's component along the line from the body back to the camera.
+   * The camera sits behind the look direction, so that line is minus it.
+   */
+  private towardTarget(opts: CameraMotion): number {
+    const closing = -((opts.velX ?? 0) * Math.sin(this.yaw) + (opts.velZ ?? 0) * Math.cos(this.yaw));
+    return clamp(closing / Math.max(T.towardFullSpeed, 0.01), 0, 1);
+  }
+
+  /** ease `cur` toward `want`: open fast, close slowly, and only after the hold runs out */
+  private ease(cur: number, want: number, hold: number, dt: number): [number, number] {
+    if (want > cur) return [damp(cur, want, T.openLambda, dt), T.closeHold];
+    hold = Math.max(0, hold - dt);
+    return [hold <= 0 ? damp(cur, want, T.closeLambda, dt) : cur, hold];
   }
 
   update(dt: number, feetPos: THREE.Vector3, physics: PhysicsWorld, opts: CameraMotion): void {
@@ -296,16 +318,13 @@ export class ThirdPersonCamera {
     // is a continuous drift the player reads as the camera breathing with them,
     // never a cut. With the setting off the multiplier below is a flat 1 and
     // this settles on the dialled-in distance, exactly as it did before.
-    const want = this.paceTarget(opts);
-    if (want > this.pace) this.paceHold = CLOSE_HOLD;
-    else this.paceHold = Math.max(0, this.paceHold - dt);
-    if (want > this.pace) this.pace = damp(this.pace, want, OPEN_LAMBDA, dt);
-    else if (this.paceHold <= 0) this.pace = damp(this.pace, want, CLOSE_LAMBDA, dt);
+    [this.pace, this.paceHold] = this.ease(this.pace, this.paceTarget(opts), this.paceHold, dt);
+    [this.toward, this.towardHold] = this.ease(this.toward, this.towardTarget(opts), this.towardHold, dt);
     // the pace tracks the player whether or not the setting is on, so turning
     // it on mid-sprint eases out to the right framing instead of from a
     // standstill; off, the multiplier is a flat 1 and nothing here is felt
     const follow = config.camera.dynamic
-      ? NEAR_RATIO + (FAR_RATIO - NEAR_RATIO) * smoothstep(this.pace)
+      ? T.nearRatio + (T.farRatio - T.nearRatio) * smoothstep(this.pace) + T.towardExtra * smoothstep(this.toward)
       : 1;
 
     // aiming pulls in proportionally, so the over-the-shoulder framing keeps

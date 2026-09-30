@@ -1686,6 +1686,7 @@ export class Player {
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
       crouching: this.autoCrouching,
+      velX: this.velocity.x, velZ: this.velocity.z,
       // thrust reads as flight even while hovering still; a plain fall gets
       // its width from the climb term instead, so a kerb-step isn't "flying"
       flying: this.thrusting > 0, climb: this.grounded ? 0 : this.velocity.y,
@@ -2773,6 +2774,7 @@ export class Player {
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: false, speed: speed2, dashing: false,
       flying: true, climb: this.velocity.y,
+      velX: this.velocity.x, velZ: this.velocity.z,
     });
   }
 

@@ -1,0 +1,15 @@
+{
+  "_readme": "Chase-camera follow distance, as multipliers of the player's chase distance (1.9 m by default; the right-stick dolly scales it). Speeds are m/s: Din runs at about 7.4 and sprints at 14.4. Lambdas are smoothing rates (higher = faster). Edit and reload.",
+  "nearRatio": 0.86,
+  "farRatio": 1.6,
+  "calmSpeed": 1.5,
+  "hotSpeed": 14,
+  "towardExtra": 0.35,
+  "towardFullSpeed": 7,
+  "openLambda": 3.6,
+  "closeLambda": 1.15,
+  "closeHold": 0.4,
+  "climbWeight": 0.7,
+  "flyingFloor": 0.5,
+  "dashFloor": 0.85
+}
