@@ -62,6 +62,48 @@ const SWING_MARGIN = 0.15;
 const LUNGE_STANDOFF = 0.9;
 const LUNGE_STANDOFF_BARE = 0.6;
 const _contact = new THREE.Vector3();
+const _plungeRing = new THREE.Vector3();
+
+/**
+ * Fighting from the air (`updateAirMelee`).
+ *
+ * **X in the air is the aerial strike**: `airSlashUpper` over `airSlashLower`,
+ * a steep chop down through the space under and ahead of the boots, struck by
+ * the weapon's own geometry like every ground swing. Two per airtime; the
+ * first one hangs the body for a beat (an upward pop to AIR_SWING_HANG, never
+ * a dead stop), the second only checks the fall.
+ *
+ * **Y in the air is the plunge** — the old aerial slam, now with a weapon in
+ * it: the body drives down at PLUNGE_SPEED with the weapon hauled overhead,
+ * and the landing is an area smash whose radius, damage and shove grow with
+ * how far it fell (from the airtime's peak). X while already falling fast
+ * (faster than AIR_PLUNGE_FALL, about three metres of drop) turns into the
+ * plunge as well: a swing from that high is better spent on the ground.
+ */
+const AIR_SWINGS = 2;
+const AIR_SWING_HANG = 2.5;
+/** the aerial strike hits a little harder than the first ground swing */
+const AIR_SWING_DAMAGE = 1.15;
+/** how far under the boots, and how far out, the aerial strike still finds a body by reach (m) */
+const AIR_REACH_BELOW = 3;
+const AIR_REACH_OUT = 2.6;
+/** falling faster than this (m/s), X becomes the plunge */
+const AIR_PLUNGE_FALL = 12;
+const PLUNGE_SPEED = 30;
+/** the smash at the smallest drop and at PLUNGE_FULL_DROP metres or more */
+const PLUNGE_FULL_DROP = 14;
+const PLUNGE_RADIUS: [number, number] = [4, 7.5];
+const PLUNGE_DAMAGE: [number, number] = [24, 75];
+const PLUNGE_SHOVE: [number, number] = [14, 24];
+/**
+ * A tucked saber acrobat turns bolts from every side: the deflect sphere
+ * wraps the whole ball (its centre at this share of the standing height).
+ */
+const TUCK_DEFLECT_R = 1.2;
+const TUCK_DEFLECT_Y = 0.5;
+/** the standing guard's deflect sphere: its size and its arc (see `saberSphere`) */
+const SABER_DEFLECT_R = 0.95;
+const SABER_DEFLECT_DOT = -0.2;
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -161,6 +203,49 @@ const BREACH_VEL = 8.5;
 const AMPHIB = 1.5;
 /** super jump: sustained climb speed while A stays held from the leap, m/s */
 const SUPERJUMP_RISE = 9;
+/**
+ * How high a held super jump can carry you, metres above where it left the
+ * ground (the apex: the rise is let go early enough that the coast after it
+ * tops out here). It used to have no limit at all — the climb lasted as long
+ * as A did — so the numbers below are the tallest thing the game ever asks a
+ * fighter without a pack to clear in one bound, plus 15% so the jump never
+ * feels like it only just made it.
+ *
+ * - SUPERJUMP_APEX — the Chimney's crack (sections/chimney.ts, the last
+ *   stretch, floor 92 to the lip at 116). Its upper wall ledge sits 16.8 m
+ *   over the third floor and has to be reached from that floor in one bound:
+ *   from the lower ledge it is 22 m across under the lip's slab, and a 4 m
+ *   gap under that slab leaves no arc to cross it with. Everything else a
+ *   super-jumper must climb is lower: the crevasse's highest ice ledge
+ *   (13.8 m over the canyon floor; world/crevasse.ts), the Chimney's other
+ *   ledge steps (~11 m), the Mark Runs' fallen sign over the last gap
+ *   (~7.5 m; sections/mark-runs.ts) and a tram roof (3.2 m; tram-top.ts).
+ *   16.8 x 1.15 = 19.3.
+ * - SUPERJUMP_APEX_SABER — lightsaber wielders (sabers in the melee kit, the
+ *   Darksaber included) leap notably higher: the whole of that crack in one
+ *   bound, third floor to the lip, 24 m (the tallest open climb a fighter
+ *   without a pack meets anywhere; the crevasse floor to its rim is 19.5 m).
+ *   24 x 1.15 = 27.6.
+ *
+ * Each cap is also floored, so the jump stays a big, generous leap even if a
+ * level change ever lowers the tallest requirement: never under 12 m for a
+ * super-jumper (about six times a plain hop's 1.9 m) and never under 20 m for
+ * a saber wielder. Today the requirements win: 19.3 m and 27.6 m.
+ *
+ * Neither applies to the jetpack (fuel-limited already) or to a section's
+ * boosters (`relightRise`, Covert Sky), which re-arm the climb from wherever
+ * the body is every frame they are lit.
+ */
+const SUPERJUMP_MARGIN = 1.15;
+/** the tallest required bound for any super-jumper: the Chimney crack's upper ledge */
+const SUPERJUMP_NEED = 16.8;
+/** ...and the saber wielder's: the whole crack, third floor to the lip */
+const SUPERJUMP_NEED_SABER = 24;
+/** the floors: a high jump however little the levels happen to ask for */
+const SUPERJUMP_FLOOR = 12;
+const SUPERJUMP_FLOOR_SABER = 20;
+export const SUPERJUMP_APEX = Math.max(SUPERJUMP_NEED * SUPERJUMP_MARGIN, SUPERJUMP_FLOOR);
+export const SUPERJUMP_APEX_SABER = Math.max(SUPERJUMP_NEED_SABER * SUPERJUMP_MARGIN, SUPERJUMP_FLOOR_SABER);
 /** super jump: gravity multiplier while feathering the fall with A held */
 const SUPERJUMP_GLIDE = 0.35;
 /** super jump: terminal fall speed while feathering, m/s */
@@ -729,11 +814,11 @@ export class Player {
   private saberIdle = 0;
   /** scratch for the saber deflect collider */
   private saberSphere = {
-    center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
+    center: new THREE.Vector3(), radius: SABER_DEFLECT_R, normal: new THREE.Vector3(),
     // Past the shoulders, short of the back. The old ±69° cone measured out as
     // a real gap: fire from three quarters on landed while the blades were
     // plainly working, which is what "some attacks get through" was.
-    kind: 'saber' as const, minDot: -0.2,
+    kind: 'saber' as const, minDot: SABER_DEFLECT_DOT,
     aim: null as THREE.Vector3 | null,
     consume: () => this.consumeDeflect(),
   };
@@ -791,6 +876,15 @@ export class Player {
   // ---- super jump (flight: 'superjump') ----
   /** the A hold from the take-off is still unbroken: the climb is live */
   private riseHold = false;
+  /** where the live climb started (feet height): the apex cap is measured from here */
+  private riseFrom = 0;
+  // ---- fighting from the air (updateAirMelee) ----
+  /** aerial strikes thrown since leaving the ground */
+  private airSwings = 0;
+  /** the swing in play is an aerial strike: it also finds bodies under the boots */
+  private airStrike = false;
+  /** the highest the feet have been this airtime: the plunge measures its drop from here */
+  private airPeak = 0;
   /** climbing under the hold this frame (gravity stands aside) */
   private superRising = false;
   /** feathering the fall with A held (reduced gravity, capped fall) */
@@ -1657,8 +1751,20 @@ export class Player {
     if (this.energy <= 0 && this.meleeTimer <= 0) return null;
     const s = this.saberSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-    s.center.copy(this.position).addScaledVector(s.normal, 0.55);
-    s.center.y += 1.15;
+    if (this.tucked) {
+      // Tucked in the air the blades wheel round the whole ball, so they turn
+      // fire from every side — the sphere wraps the body and takes any bearing
+      // (below -1 on purpose; see the bubble shield above).
+      s.center.copy(this.position);
+      s.center.y += this.height * TUCK_DEFLECT_Y;
+      s.radius = TUCK_DEFLECT_R;
+      s.minDot = -1.1;
+    } else {
+      s.center.copy(this.position).addScaledVector(s.normal, 0.55);
+      s.center.y += 1.15;
+      s.radius = SABER_DEFLECT_R;
+      s.minDot = SABER_DEFLECT_DOT;
+    }
     s.aim = this.deflectTarget;
     return s;
   }
@@ -1752,14 +1858,12 @@ export class Player {
 
     const jumped = this.updateJump(dt, input, game);
     this.updateJetpack(dt, input, game, jumped);
-    this.updateSuperRise(dt, input);
+    this.updateSuperRise(dt, input, game);
     this.updateAirFlip(dt, input, game, jumped);
 
-    // ---- slam ----
-    if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
-      this.slamming = true;
-      this.velocity.y = -30;
-    }
+    // ---- slam: the plunge, and the rest of fighting from the air ----
+    if (input.slamPressed && !this.grounded && this.velocity.y < 6 && !this.slamming) this.beginPlunge(game);
+    input = this.updateAirMelee(input, game);
     this.applyFall(dt, input, game);
     this.integrateAndLand(dt, game, anim);
     this.updateBounds(game);
@@ -2203,6 +2307,7 @@ export class Player {
       // the super jump is armed by the take-off itself: the hold that leaves
       // the ground is the one that keeps climbing
       this.riseHold = superjump;
+      this.riseFrom = this.position.y;
     }
     return jumped;
   }
@@ -2287,22 +2392,44 @@ export class Player {
    * normally the climb is spent for good the moment the button lifts.
    */
   relightRise(): void {
-    if (this.profile.flight === 'superjump' && !this.grounded) this.riseHold = true;
+    if (this.profile.flight === 'superjump' && !this.grounded) {
+      this.riseHold = true;
+      // the boosters carry the climb, not the legs: no apex to run into
+      this.riseFrom = this.position.y;
+    }
+  }
+
+  /** how high this fighter's held super jump tops out, metres over the take-off */
+  get superJumpApex(): number {
+    return this.profile.meleeOptions.includes('sabers') ? SUPERJUMP_APEX_SABER : SUPERJUMP_APEX;
   }
 
   /** super jump: the non-Mandalorian answer to the jetpack */
-  private updateSuperRise(dt: number, input: FrameInput): void {
+  private updateSuperRise(dt: number, input: FrameInput, game: Game): void {
     const superjump = this.profile.flight === 'superjump';
-    // Hold A from the leap and she just keeps rising — as high as the hold
-    // lasts, no fuel, no flames. The moment the button lifts (or the shield
-    // comes up) the climb is spent for good: nothing relights mid-air, and
-    // the way down is a commitment, softened only by the glide below.
+    // Hold A from the leap and she keeps rising — no fuel, no flames — up to
+    // the apex her kit allows (SUPERJUMP_APEX). The moment the button lifts
+    // (or the shield comes up, or the apex is reached) the climb is spent for
+    // good: nothing relights mid-air, and the way down is a commitment,
+    // softened only by the glide below.
     this.superRising = false;
     if (superjump && this.riseHold) {
       if (!input.jumpHeld || this.blocking) this.riseHold = false;
       else if (!this.grounded) {
-        this.superRising = true;
-        this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
+        // Let go early enough that the coast after the climb tops out on the
+        // apex rather than past it: what is left of the upward speed still
+        // carries v^2 / 2g on top of wherever the climb ends.
+        // (Out in the vacuum there is no coast: the drift bleeds the climb off.)
+        const localG = this.gravity(game.board);
+        const up = Math.max(0, this.velocity.y);
+        const coast = localG > SPACE_GRAVITY ? (up * up) / (2 * GRAVITY * localG) : 0;
+        const apex = this.position.y - this.riseFrom + coast;
+        if (apex >= this.superJumpApex) {
+          this.riseHold = false;
+        } else {
+          this.superRising = true;
+          this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
+        }
       }
     }
   }
@@ -2467,20 +2594,7 @@ export class Player {
       }
       if (this.slamming) {
         this.slamming = false;
-        this.cam.shake(0.2);
-        audio.explosion();
-        // the shockwave reaches the scenery too — ice plates crack under it
-        game.damageBreakablesNear(this.position, 4.5, 70);
-        for (const e of game.enemies) {
-          // never your own squad or brood — they share `enemies` with the hostiles
-          if (!e.alive || e.team === this.team) continue;
-          const d = e.position.distanceTo(this.position);
-          if (d < 5) {
-            e.damage(20, this.position, this.slot);
-            e.knockback(this.position, 16, 0.55);
-            e.knockdown(1.2 + Math.random() * 0.6);
-          }
-        }
+        this.plungeImpact(game, anim);
       }
     }
     this.grounded = res.grounded;
@@ -2678,7 +2792,9 @@ export class Player {
       // the tuck holds while the button does; letting go cross-fades back to
       // the falling stance, which is the body unfolding out of the roll
       anim.play('lower', 'tuckLower', 0.12);
-      if (this.meleeTimer <= 0) anim.play('upper', 'tuckUpper', 0.12);
+      // lit blades can't be wrapped round the shins: they ride up the back
+      const tuckUpper = this.sabersDrawn && anim.clips.tuckSaberUpper ? 'tuckSaberUpper' : 'tuckUpper';
+      if (this.meleeTimer <= 0) anim.play('upper', tuckUpper, 0.12);
     } else if (this.gliding || this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       // Flight is four poses, not one: which of them is on the body comes from
       // the climb angle and the ground below (see `flightPose`). The fade is
@@ -2836,6 +2952,7 @@ export class Player {
       this.velocity.y = BREACH_VEL * amphib;
       this.grounded = false;
       this.riseHold = this.profile.flight === 'superjump';
+      this.riseFrom = this.position.y;
       game.particles.splash(this.position.clone().setY(waterY), 18);
       audio.splash(false);
     }
@@ -3035,6 +3152,7 @@ export class Player {
   }
 
   private beginSwingContact(dur: number, hitAt: number, game: Game): void {
+    this.airStrike = false;
     this.swingT = 0;
     this.swingDur = dur;
     this.swingHitAt = hitAt;
@@ -3084,6 +3202,8 @@ export class Player {
       // from the slide, a sweep that has met nothing yet still lands by reach
       if (carriedWindow && this.swingStruck.size === 0) this.carriedStrike(game);
     }
+    // from the air, a chop that met nothing still finds what is under the boots
+    if (keyed && this.airStrike && this.swingStruck.size === 0 && !this.swingDone) this.airStrikeBelow(game);
     // keep this frame's blade for next frame's sweep
     for (let i = 0; i < n; i++) {
       const src = this.swingSegs[i];
@@ -4083,6 +4203,227 @@ export class Player {
     game.particles.dustPuff(this.position, 8);
   }
 
+  /** rolled up in an air somersault (the tuck is most of the way on) */
+  get tucked(): boolean {
+    return !this.grounded && this.tuckBlend > 0.5;
+  }
+
+  /**
+   * Fighting from the air: X is the aerial strike, or the plunge when the fall
+   * is already well under way (see AIR_SWINGS). Returns the input with the
+   * press spent, so the ground combo never sees it and buffers a swing for
+   * the landing. A body the section is carrying (the slide) and a creature
+   * with no clips swing the ground way, from wherever they are.
+   */
+  private updateAirMelee(input: FrameInput, game: Game): FrameInput {
+    if (this.grounded) {
+      this.airSwings = 0;
+      this.airPeak = this.position.y;
+      return input;
+    }
+    this.airPeak = Math.max(this.airPeak, this.position.y);
+    if (!input.meleePressed || this.blocking || this.vehicle || this.cover) return input;
+    if (!this.char.animator?.clips.airSlashUpper || this.sectionMove?.carried?.(this)) return input;
+    const spent = { ...input, meleePressed: false };
+    if (this.slamming || this.meleeTimer > 0.08) return spent;
+    if (this.velocity.y < -AIR_PLUNGE_FALL) { this.beginPlunge(game); return spent; }
+    if (this.airSwings < AIR_SWINGS) this.airSwing(game);
+    return spent;
+  }
+
+  /** the aerial strike: a steep chop down through what is under and ahead of the boots */
+  private airSwing(game: Game): void {
+    const anim = this.char.animator!;
+    const fists = this.meleeKind === 'fists';
+    const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
+    this.meleeBare = bare;
+    this.meleeRange = bare ? 1.8 : 3;
+    this.meleeStep = 1;
+    this.swingKick = false;
+    this.swingCarried = false;
+    this.swingLegs = false;
+    const dur = anim.playOnce('upper', 'airSlashUpper', 0.05);
+    anim.playOnce('lower', 'airSlashLower', 0.06);
+    this.meleeTimer = dur;
+    this.meleeComboWindow = dur + 0.3;
+    this.meleeHitPending = dur * 0.45;
+    this.meleeDamage = this.profile.meleeDamage * AIR_SWING_DAMAGE * (bare && !fists ? 0.4 : 1);
+    this.beginSwingContact(dur, this.meleeHitPending, game);
+    this.airStrike = true;
+    if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
+    this.weapon = 'gaffi';
+    this.char.setWeapon('gaffi');
+    this.saberIdle = 0;
+    this.flourished = false;
+    audio.melee(1, this.swingSound);
+    // The first strike of an airtime hangs the body a beat (a small upward
+    // pop, never a dead stop in mid-air); a second only checks the fall. A
+    // climb that is already going faster than the pop is left alone.
+    if (this.airSwings === 0) this.velocity.y = Math.max(this.velocity.y, AIR_SWING_HANG);
+    else this.velocity.y = Math.max(this.velocity.y, -2);
+    this.airSwings++;
+    // drift onto a body below and ahead rather than lunging: the air is not
+    // something to push off, so this only steers what momentum there is
+    const target = this.airTarget(game);
+    this.lungeTarget = null;
+    if (target) {
+      const dx = target.position.x - this.position.x, dz = target.position.z - this.position.z;
+      const flat = Math.hypot(dx, dz);
+      this.facingYaw = Math.atan2(dx, dz);
+      const reach = Math.max(0, flat - target.radius - LUNGE_STANDOFF);
+      const v = Math.min(9, reach / Math.max(dur * 0.45, 0.1));
+      if (flat > 1e-3) {
+        this.velocity.x = (dx / flat) * v;
+        this.velocity.z = (dz / flat) * v;
+      }
+    }
+  }
+
+  /** the nearest hostile the aerial strike can be steered onto: ahead, and level or below */
+  private airTarget(game: Game): Combatant | null {
+    const fx = Math.sin(this.facingYaw), fz = Math.cos(this.facingYaw);
+    let best: Combatant | null = null;
+    let bestD = Infinity;
+    for (const e of game.hostilesFor(this)) {
+      if (!e.alive) continue;
+      const dx = e.position.x - this.position.x, dz = e.position.z - this.position.z;
+      const flat = Math.hypot(dx, dz);
+      const below = this.position.y - e.position.y;
+      if (flat > 6 || below > 6 || below < -1.5) continue;
+      if (flat > 1 && (dx * fx + dz * fz) / flat < 0.3) continue;
+      const d = Math.hypot(flat, below);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    return best;
+  }
+
+  /**
+   * The aerial strike's forgiveness: a chop from the air that the blade's own
+   * sweep missed still lands, on its contact key, on a body under the boots
+   * or close in front. Kept here (the ground swings dropped the reach test)
+   * because "below you" is what a blade swung from overhead is hardest to
+   * judge. Each body goes through `strike`, so a guard still parries it.
+   */
+  private airStrikeBelow(game: Game): void {
+    const reach = this.meleeBare ? 1.8 : AIR_REACH_OUT;
+    const fx = Math.sin(this.facingYaw), fz = Math.cos(this.facingYaw);
+    for (const e of game.hostilesFor(this)) {
+      if (!e.alive || this.swingStruck.has(e)) continue;
+      const near = this.meleeNearest(e);
+      if (near.dist > reach) continue;
+      const top = e.position.y + (e.hitHeight ?? e.height);
+      if (top < this.position.y - AIR_REACH_BELOW || e.position.y > this.position.y + 1.5) continue;
+      // anything right under the boots is fair from any side; further out, ahead
+      if (near.dist > 0.6 && near.toward.x * fx + near.toward.z * fz < -0.1) continue;
+      _contact.set(e.position.x, Math.min(top, this.position.y + 0.5), e.position.z);
+      this.strike(e, _contact, game);
+      if (this.swingDone) break;
+    }
+  }
+
+  /**
+   * Y in the air (or X once the fall is well under way): the plunge. The body
+   * drives at the ground with the weapon out, and the landing is the smash
+   * (`plungeImpact`, measured off the airtime's peak).
+   */
+  private beginPlunge(game: Game): void {
+    this.slamming = true;
+    this.riseHold = false;
+    this.velocity.y = -PLUNGE_SPEED;
+    this.meleeTimer = 0;
+    this.swingDur = 0;
+    this.lungeTarget = null;
+    // the weapon comes out for it, as a swing would bring it
+    if (this.meleeKind !== 'fists') {
+      if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
+      this.weapon = 'gaffi';
+      this.char.setWeapon('gaffi');
+      this.saberIdle = 0;
+    }
+    const anim = this.char.animator;
+    if (anim?.clips.plungeUpper) {
+      anim.playOnce('upper', 'plungeUpper', 0.06);
+      anim.playOnce('lower', 'plungeLower', 0.06);
+    }
+    audio.melee(3, this.swingSound);
+    game.particles.dustPuff(this.position, 4);
+  }
+
+  /**
+   * The plunge meets the ground: an area smash, bigger the further it fell.
+   * Radius, damage and shove run from the first of each PLUNGE_ pair at no
+   * drop to the second at PLUNGE_FULL_DROP metres, damage easing off toward
+   * the rim. Each body goes through `resolveClash` like any blade, so a
+   * hostile meeting it mid-strike parries it (or is cut through, or shears
+   * it off).
+   */
+  private plungeImpact(game: Game, anim: Animator): void {
+    const drop = Math.max(0, this.airPeak - this.position.y);
+    const k = clamp(drop / PLUNGE_FULL_DROP, 0, 1);
+    const lerp = (r: [number, number]) => r[0] + (r[1] - r[0]) * k;
+    const radius = lerp(PLUNGE_RADIUS), dmg = lerp(PLUNGE_DAMAGE), shove = lerp(PLUNGE_SHOVE);
+    this.lastPlunge = { drop, radius, damage: dmg };
+    this.cam.shake(0.2 + 0.3 * k);
+    audio.explosion();
+    // the shockwave reaches the scenery too: ice plates crack under it
+    game.damageBreakablesNear(this.position, radius, 70);
+    // a ring of dust thrown out to the edge of the smash, sparks where it struck
+    game.particles.dustPuff(this.position, 18 + Math.round(24 * k));
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      _plungeRing.set(this.position.x + Math.cos(a) * radius * 0.7, this.position.y + 0.1, this.position.z + Math.sin(a) * radius * 0.7);
+      game.particles.dustPuff(_plungeRing, 3);
+    }
+    _plungeRing.copy(this.position);
+    _plungeRing.x += Math.sin(this.facingYaw) * 0.8;
+    _plungeRing.z += Math.cos(this.facingYaw) * 0.8;
+    game.particles.impactSparks(_plungeRing, 10 + Math.round(10 * k));
+    for (const p of game.players) {
+      if (p === this) continue;
+      const dd = p.position.distanceTo(this.position);
+      if (dd < radius * 2.5) p.groundShake(0.25 * k * (1 - dd / (radius * 2.5)));
+    }
+    // the smash owns the arms (and holds off the combo's flourish) until it is through
+    const smash = anim.clips.plungeSmashUpper ? anim.playOnce('upper', 'plungeSmashUpper', 0.04) : 0;
+    this.meleeTimer = Math.max(this.meleeTimer, smash * 0.8);
+    this.meleeComboWindow = smash + 0.3;
+    this.flourished = true;
+    this.landArms = false;
+    this.meleeStep = 3;
+    this.meleeDamage = dmg;
+    const blade = this.meleeBlade;
+    let landed = false;
+    for (const e of game.hostilesFor(this)) {
+      if (!e.alive) continue;
+      const dx = e.position.x - this.position.x, dz = e.position.z - this.position.z;
+      const d = Math.hypot(dx, dz) - e.radius;
+      if (d > radius || Math.abs(e.position.y - this.position.y) > 2.5) continue;
+      const clash = resolveClash(this, blade, e);
+      if (clash.kind === 'parry') { game.meleeClash(this, game.time, e as Duelist, clash.sound, e.position); continue; }
+      if (clash.kind === 'sheared') { game.meleeShear(this, e, e.position); continue; }
+      if (clash.kind === 'cut') game.bladeCut(e.position);
+      const falloff = 1 - 0.5 * clamp(d / radius, 0, 1);
+      e.damage(dmg * falloff, this.position, this.slot);
+      const en = e as Partial<Enemy> & typeof e;
+      if (en.knockback && en.knockdown) {
+        en.knockback(this.position, shove * falloff, 0.55);
+        en.knockdown(1.2 + 0.8 * k);
+      } else {
+        const len = Math.hypot(dx, dz) || 1;
+        e.velocity.x += (dx / len) * shove * 0.5;
+        e.velocity.z += (dz / len) * shove * 0.5;
+        e.velocity.y += 4;
+      }
+      landed = true;
+    }
+    if (landed) {
+      game.hitMarker(this.slot);
+      this.hitStop = 0.08;
+    }
+  }
+  /** the last plunge's numbers, for the tests to read */
+  lastPlunge: { drop: number; radius: number; damage: number } | null = null;
+
   /** the gravity acting on this body where it is standing (or flying) */
   private gravity(board: Board): number {
     return gravityScale(board, this.position.x, this.position.y, this.position.z);
@@ -4219,7 +4560,15 @@ export class Player {
     if (input.jumpPressed && !jumped && !this.flipping
       && air >= FLIP_TURN_TIME + FLIP_LAND_MARGIN) {
       this.flipping = true;
+      // a saber acrobat rolls with the blades lit: they come out with the tuck
+      if (this.meleeKind === 'sabers' && this.sabersHeld > 0 && this.weapon !== 'gaffi') {
+        this.weapon = 'gaffi';
+        this.char.setWeapon('gaffi');
+        audio.saberIgnite();
+      }
     }
+    // ...and stay lit through it (the stow clock waits for the roll)
+    if ((this.flipping || this.tuckBlend > 0.05) && this.sabersDrawn) this.saberIdle = 0;
     // the button is gone — or the ground has come up far enough that the turn
     // left is all the air left: either way, pick the revolution to finish on
     // and unwind to it

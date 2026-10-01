@@ -121,6 +121,48 @@ const SLAM_WINDUP = 0.7;
 const SLAM_RADIUS = 3;
 const SLAM_CD = 5;
 
+/**
+ * The agile fighters' attacks from the air — the player's aerial strike and
+ * plunge (player.ts `updateAirMelee`), in the hands of the few hostiles light
+ * enough on their feet to use them:
+ *
+ *   - **strike** — the saber duelists Ventress, Maris and Galen: a leap at the
+ *     target with the blade cocked, and the aerial chop (`airSlashUpper`) on
+ *     the way down. It is an ordinary strike in every way that matters: the
+ *     blade's own geometry is swept against the target through the last of
+ *     the wind-up, and it goes through `resolveClash`, so a swing met in time
+ *     parries it out of the air.
+ *   - **plunge** — Maul and the officer: a high leap to over the target's
+ *     line, then a dive into the ground and a ring of shock around the
+ *     landing (`plungeUpper` → `plungeSmashUpper`). The ember ring drawn on
+ *     the ground where it will land is the get-out line, as it is for the
+ *     enforcer's slam; each body inside still meets the weapon through
+ *     `resolveClash`.
+ *
+ * Both are telegraphed by a crouch (AIR_GATHER s, sparks off the weapon and a
+ * bark) before the feet leave the ground, open only from AIR_MIN to AIR_MAX
+ * metres out (inside that the plain swing is the move), and wait on their own
+ * clock (AIR_CD) as well as the attack clock, so they punctuate a fight.
+ */
+type AirMove = 'strike' | 'plunge';
+const AIR_MOVES: Partial<Record<EnemyKind, AirMove>> = {
+  rivalVentress: 'strike', rivalMaris: 'strike', rivalGalen: 'strike',
+  rivalMaul: 'plunge', officer: 'plunge',
+};
+const AIR_GATHER = 0.45;
+const AIR_MIN = 4.5;
+const AIR_MAX = 11;
+const AIR_CD = 6.5;
+/** the strike's leap: take-off speed, and where in the flight the chop's contact key falls */
+const AIR_STRIKE_VY = 8.5;
+const AIR_STRIKE_KEY = 0.7;
+const AIR_STRIKE_DAMAGE = 1.15;
+/** the plunge's leap, the dive's speed, and the ring of shock it lands in */
+const AIR_PLUNGE_VY = 12.5;
+const AIR_PLUNGE_DIVE = 24;
+const AIR_PLUNGE_RADIUS = 3.2;
+const AIR_PLUNGE_DAMAGE = 1.1;
+
 /** where to aim on a body: mid-chest of whatever it actually is */
 export function aimHeight(target: Combatant): number {
   return (target.hitHeight ?? target.height) * 0.55;
@@ -719,6 +761,23 @@ export class Enemy {
   private strikePrevN = 0;
   /** the committed second move winding up or in flight, if any (see DASH_* / SLAM_*) */
   private special: 'dash' | 'slam' | null = null;
+  /** an agile fighter's attack from the air, while it runs (see AIR_MOVES); public for the tests */
+  airMove: AirMove | null = null;
+  /** where it is in it: the crouch, the leap, or (a plunge) the dive */
+  private airPhase: 'gather' | 'flight' | 'dive' = 'gather';
+  private airT = 0;
+  /** seconds since the feet left the ground on it */
+  private airFlown = 0;
+  /** spacing between attacks from the air; starts nearly spent, so a fight at range opens with one */
+  private airCd = 0.5 + Math.random();
+  /** where the plunge is going to land, for its ember ring */
+  private airAim = new THREE.Vector3();
+  private airPeak = 0;
+  /** the strike was met (parried) or has landed: nothing more comes of this one */
+  private airSpent = false;
+  private airTarget: Combatant | null = null;
+  /** attacks from the air begun, for the tests */
+  airAttacks = 0;
   /** seconds of the officer's lunge left; `dashDir` is the line, fixed at launch */
   private dashT = 0;
   private dashDir = new THREE.Vector3();
@@ -1383,6 +1442,12 @@ export class Enemy {
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
     if (this.submerged) return;   // the ground it is under does not shove
     if (this.ride) return;        // the saddle holds; the ride takes the shove
+    // shoved out of an attack from the air: a crouch is broken off, a leap
+    // carries on but comes to nothing
+    if (this.airMove) {
+      if (this.airPhase === 'gather') this.airMove = null;
+      else this.airSpent = true;
+    }
     // The Sleeper is of the ground: a shove moves it a third as far, and not
     // at all mid-move. At full strength a party's rockets walked it into a
     // corner of its own basin and pinned it there.
@@ -1416,6 +1481,7 @@ export class Enemy {
     this.volleyLeft = 0;
     this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
     this.special = null;   // and a lunge or slam winding up is lost with it
+    this.airMove = null;   // as is an attack from the air
     this.dashT = 0;
     const anim = this.char.animator;
     if (anim && !wasDown) {
@@ -1918,6 +1984,8 @@ export class Enemy {
   /** the AI proper: what this body does with the frame, by state and by style */
   private steer(dt: number, game: Game, target: Combatant | null): void {
     const d = this.def;
+    // the clock between attacks from the air runs whatever the body is doing
+    if (!this.airMove && AIR_MOVES[this.kind]) this.airCd -= dt;
     // a section's brain for this body (see `sectionSteer`) — never over a stagger
     if (this.stagger <= 0 && this.sectionSteer?.(this, dt, game, target)) return;
     if (this.stagger > 0) {
@@ -2845,6 +2913,10 @@ export class Enemy {
 
   /** mid-swing at somebody, through the follow-through: a blade arriving now meets it */
   meleeGuard(): Guard | null {
+    if (this.airMove === 'plunge' && this.airPhase === 'dive' && !this.airSpent && this.alive) {
+      const blade = this.meleeBlade;
+      return blade ? { blade, startedAt: this.windupStartedAt, target: this.airTarget } : null;
+    }
     if (!this.alive || this.special || !(this.windup > 0 || this.strikeFollow > 0) || !this.windupTarget) return null;
     const blade = this.meleeBlade;
     return blade ? { blade, startedAt: this.windupStartedAt, target: this.windupTarget } : null;
@@ -2855,6 +2927,7 @@ export class Enemy {
     this.windup = 0;
     this.strikeFollow = 0;
     this.windupTarget = null;
+    if (this.airMove) this.airSpent = true;
     this.attackCd = Math.max(this.attackCd, this.def.attackCd * 0.6);
     this.knockback(from, PARRY_SHOVE, 0.35, 0.05);
     const clip = react ? ENEMY_PARRY_CLIPS[this.kind] : undefined;
@@ -2931,6 +3004,8 @@ export class Enemy {
     const to = target.position.clone().sub(this.position);
     to.y = 0;
     const dist = to.length();
+    // an attack from the air owns the body until it lands
+    if (this.airMove) { this.updateAirMove(dt, game, target, dist); return; }
     this.faceToward(dt, target.position.x, target.position.z);
 
     if (this.windup > 0 || this.strikeFollow > 0) {
@@ -2985,6 +3060,15 @@ export class Enemy {
     // the enforcer answers a target inside the ring with the slam (a roll
     // keeps its plain swing in the mix). Both wait on the same attack clock
     // as a swing and on their own spacing, so neither raises the damage rate.
+    // the agile few take to the air (AIR_MOVES)
+    if (AIR_MOVES[this.kind]) {
+      if (this.airCd <= 0 && this.attackCd <= 0 && this.grounded && this.stagger <= 0 && this.windup <= 0
+        && dist > AIR_MIN && dist < AIR_MAX && this.losThrottled(game, target)) {
+        // the officer splits its openers between this and the lunge
+        if (this.kind === 'officer' && Math.random() < 0.4) this.airCd = 1.5;
+        else { this.startAirMove(game, target); return; }
+      }
+    }
     if (this.specialCd <= 0 && this.attackCd <= 0 && this.grounded && this.stagger <= 0) {
       if (this.kind === 'officer' && dist > d.attackRange && dist < DASH_TRIGGER && this.losThrottled(game, target)) {
         this.startSpecial('dash', target);
@@ -3052,6 +3136,207 @@ export class Enemy {
         this.strikePrevN = 0;
       }
     }
+  }
+
+  /** the crouch before an attack from the air: the telegraph */
+  private startAirMove(game: Game, target: Combatant): void {
+    this.airMove = AIR_MOVES[this.kind]!;
+    this.airPhase = 'gather';
+    this.airT = AIR_GATHER;
+    this.airSpent = false;
+    this.airTarget = target;
+    this.airAttacks++;
+    this.velocity.x = 0;
+    this.velocity.z = 0;
+    const bark = SPAWN_BARKS[this.kind];
+    if (bark) audio.bark(bark, 0.55);
+    // coiled into the deep landing crouch, weapon drawn back for it
+    const anim = this.char.animator;
+    anim?.playOnce('lower', 'landHardLower', 0.08, false, 0.9);
+    game.particles.dustPuff(this.position, 4);
+  }
+
+  /** one frame of an attack from the air: the crouch, the leap, the dive and the landing */
+  private updateAirMove(dt: number, game: Game, target: Combatant, dist: number): void {
+    const d = this.def;
+    const anim = this.char.animator;
+    this.airT -= dt;
+    if (this.airPhase === 'gather') {
+      this.faceToward(dt, target.position.x, target.position.z, 12);
+      this.velocity.x = damp(this.velocity.x, 0, 12, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 12, dt);
+      // sparks off the blade as it is drawn back: the cue that it is coming
+      if (Math.floor((this.airT + dt) * 14) !== Math.floor(this.airT * 14)) {
+        const blade = this.char.rig?.bones.weaponR;
+        if (blade) blade.getWorldPosition(_cue);
+        else _cue.copy(this.position).setY(this.position.y + this.height * 0.7);
+        game.particles.impactSparks(_cue, 2);
+      }
+      if (this.airT > 0) return;
+      this.launchAirMove(game, target, dist);
+      return;
+    }
+    this.airFlown += dt;
+    // the ground, once the leap has really left it, ends either move
+    const down = this.grounded && this.airFlown > 0.15;
+    // the plunge: from the top of the leap, straight down onto the line
+    if (this.airMove === 'plunge') {
+      if (this.airPhase === 'flight' && this.velocity.y <= 0) {
+        this.airPhase = 'dive';
+        this.velocity.y = -AIR_PLUNGE_DIVE;
+        this.windupStartedAt = game.time;
+      }
+      // the ember ring where it lands, at 16 Hz
+      if (Math.floor((this.airT + dt) * 16) !== Math.floor(this.airT * 16)) {
+        for (let i = 0; i < 3; i++) {
+          const a = Math.random() * Math.PI * 2;
+          _cue.set(this.airAim.x + Math.cos(a) * AIR_PLUNGE_RADIUS, this.airAim.y + 0.4, this.airAim.z + Math.sin(a) * AIR_PLUNGE_RADIUS);
+          game.particles.impactSparks(_cue, 3);
+        }
+      }
+      this.airPeak = Math.max(this.airPeak, this.position.y);
+      if (down) this.landPlunge(game);
+      else if (this.airT < -2.5) this.endAirMove();
+      return;
+    }
+    // the strike: the chop is a wind-up like any swing, swept along the way
+    if (this.windup > 0 || this.strikeFollow > 0) {
+      const wasWinding = this.windup > 0;
+      if (wasWinding) this.windup -= dt;
+      else this.strikeFollow -= dt;
+      const ended = wasWinding && this.windup <= 0;
+      if (this.windupTarget) this.updateStrike(game, ended);
+      // the blade's sweep missed what it leapt at: a body in reach under the
+      // chop is still struck, through the same clash rules
+      if (ended && this.windupTarget && !this.airSpent) {
+        const t = this.windupTarget;
+        const flat = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
+        const dy = this.position.y - t.position.y;
+        if (t.alive && flat < d.attackRange + 0.9 && dy > -1 && dy < 2.6) {
+          _strikeAt.set(t.position.x, t.position.y + aimHeight(t), t.position.z);
+          this.landStrike(game, t, _strikeAt);
+        }
+      }
+      if (this.windupTarget === null) this.airSpent = true;
+    }
+    if (down) {
+      anim?.playOnce('lower', 'landLower', 0.05);
+      this.velocity.x *= 0.3;
+      this.velocity.z *= 0.3;
+      game.particles.dustPuff(this.position, 8);
+      this.endAirMove();
+    } else if (this.airT < -2.5) this.endAirMove();
+  }
+
+  /** off the ground: the arc onto the target (the strike) or to over its line (the plunge) */
+  private launchAirMove(game: Game, target: Combatant, dist: number): void {
+    const d = this.def;
+    const anim = this.char.animator;
+    const g = bodyGravity(game.board, this.position);
+    this.airPhase = 'flight';
+    this.airFlown = 0;
+    this.airPeak = this.position.y;
+    this.windupStartedAt = game.time;
+    if (this.airMove === 'strike') {
+      const vy = AIR_STRIKE_VY;
+      const flight = (2 * vy) / g;
+      const key = flight * AIR_STRIKE_KEY;
+      // lead the target to where it will be as the chop comes down, and arrive
+      // at blade's length from it rather than on top of it
+      const aim = target.position.clone().addScaledVector(target.velocity, key * 0.7);
+      const ax = aim.x - this.position.x, az = aim.z - this.position.z;
+      const gap = Math.hypot(ax, az) || 1;
+      const need = Math.min(18, Math.max(0, gap - d.attackRange * 0.7) / key);
+      this.velocity.set((ax / gap) * need, vy, (az / gap) * need);
+      this.facingYaw = Math.atan2(ax, az);
+      this.airT = flight + 0.4;
+      // the chop is the wind-up: its contact key is timed onto the descent
+      this.windup = key;
+      this.windupTotal = key;
+      this.windupTarget = target;
+      this.strikeKick = false;
+      this.strikeDamage = d.damage * AIR_STRIKE_DAMAGE;
+      this.strikePrevN = 0;
+      if (anim) {
+        // airSlashUpper keys its contact at 45% of 0.42 s; slowed so it lands on `key`
+        const clip = anim.clips.airSlashUpper;
+        if (clip) anim.playOnce('upper', 'airSlashUpper', 0.06, false, (clip.duration * 0.45) / key);
+        if (anim.clips.airSlashLower) anim.playOnce('lower', 'airSlashLower', 0.06, false, (anim.clips.airSlashLower.duration * 0.45) / key);
+      }
+    } else {
+      const vy = AIR_PLUNGE_VY;
+      const up = vy / g;
+      const apex = (vy * vy) / (2 * g);
+      const fall = apex / AIR_PLUNGE_DIVE;
+      const total = up + fall;
+      // over where the target will be when the dive lands
+      const aim = target.position.clone().addScaledVector(target.velocity, total * 0.6);
+      const ax = aim.x - this.position.x, az = aim.z - this.position.z;
+      const gap = Math.hypot(ax, az) || 1;
+      const need = Math.min(20, Math.max(0, gap - 0.8) / total);
+      this.velocity.set((ax / gap) * need, vy, (az / gap) * need);
+      this.facingYaw = Math.atan2(ax, az);
+      this.airAim.set(this.position.x + (ax / gap) * need * total, target.position.y, this.position.z + (az / gap) * need * total);
+      this.airT = total + 0.6;
+      if (anim) {
+        if (anim.clips.plungeUpper) anim.playOnce('upper', 'plungeUpper', 0.06);
+        if (anim.clips.plungeLower) anim.playOnce('lower', 'plungeLower', 0.06);
+      }
+    }
+    this.grounded = false;
+    audio.dash();
+    game.particles.dustPuff(this.position, 10);
+  }
+
+  /** the plunge meets the ground: a ring of shock, each body inside meeting the weapon */
+  private landPlunge(game: Game): void {
+    const d = this.def;
+    const drop = Math.max(0, this.airPeak - this.position.y);
+    const r = AIR_PLUNGE_RADIUS + Math.min(drop, 8) * 0.12;
+    const anim = this.char.animator;
+    if (anim?.clips.plungeSmashUpper) anim.playOnce('upper', 'plungeSmashUpper', 0.04);
+    anim?.playOnce('lower', 'landHardLower', 0.04);
+    game.particles.dustPuff(this.position, 22);
+    game.particles.impactSparks(this.position, 14);
+    audio.land(true);
+    game.director.noise(game, this.position, 30);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 14) p.groundShake(0.3 * (1 - dd / 14));
+    }
+    let hit = false;
+    if (!this.airSpent) {
+      for (const c of this.foesWithin(game, r)) {
+        if (Math.abs(c.position.y - this.position.y) > 2.5) continue;
+        const clash = resolveClash(this, this.meleeBlade, c);
+        if (clash.kind === 'parry') { game.meleeClash(this, this.windupStartedAt, c as Duelist, clash.sound, c.position); continue; }
+        if (clash.kind === 'sheared') { game.meleeShear(this, c, c.position); continue; }
+        if (clash.kind === 'cut') game.bladeCut(c.position);
+        hit = true;
+        c.damage(d.damage * AIR_PLUNGE_DAMAGE * this.dmgScale, this.position, -1, { heavy: true });
+        if (c instanceof Enemy) c.knockback(this.position, 11, 0.4);
+        else {
+          const push = c.position.clone().sub(this.position).setY(0);
+          if (push.lengthSq() < 1e-4) push.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+          c.velocity.addScaledVector(push.normalize(), 8);
+          c.velocity.y += 4;
+        }
+      }
+    }
+    if (hit) this.contactStop(0.09);
+    this.velocity.x = 0;
+    this.velocity.z = 0;
+    this.endAirMove();
+  }
+
+  private endAirMove(): void {
+    this.airMove = null;
+    this.airTarget = null;
+    this.windup = 0;
+    this.strikeFollow = 0;
+    this.windupTarget = null;
+    this.airCd = AIR_CD + Math.random() * 2;
+    this.attackCd = Math.max(this.attackCd, this.def.attackCd);
   }
 
   /**

@@ -493,7 +493,15 @@ function build(ctx: SectionContext): SectionInstance {
     }
     let c = cursors[slot];
     // never aim below the floor already won: re-sync to the first waypoint above the feet
-    while (c < ways.length - 1 && ways[c].at.y < p.position.y - 6) c++;
+    // (never past a valve whose shutter is still shut, however high the leap)
+    const shut = (k: number): boolean => ways[k].gate !== undefined && !shutters[ways[k].gate! - 1].open;
+    while (c < ways.length - 1 && ways[c].at.y < p.position.y - 6 && !shut(c)) c++;
+    // ...and never at one further above the feet than one bound can reach: a
+    // super jump tops out (Player.superJumpApex), so a body that has dropped
+    // off a ledge back to the floor climbs the ledge below its goal again
+    if (p.profile.flight === 'superjump' && p.grounded) {
+      while (c > 0 && ways[c].at.y - p.position.y > p.superJumpApex - 2) c--;
+    }
     const w = ways[Math.min(c, ways.length - 1)];
     const dy = w.at.y - p.position.y;
     const onIt = Math.hypot(w.at.x - p.position.x, w.at.z - p.position.z);
@@ -524,7 +532,15 @@ function build(ctx: SectionContext): SectionInstance {
     }
     const wantY = w.stand ? w.at.y + (onIt > 1.2 ? 1.8 : 0) : w.at.y;
     const resting = w.stand && jet && p.grounded && p.fuel < 0.85 && p.position.y - (Y0 + magma.y) > 10 && dy > 2;
-    if (p.position.y < wantY - 0.3 && !resting) {
+    // A super jump cannot be lit again once it is let go, so a super-jumper
+    // still travelling to a ledge keeps A down — the climb runs on to its
+    // apex and the glide carries the rest — rather than letting go at the
+    // ledge's height while still metres short of it.
+    // Only up to a few metres over the ledge (six over reads as already past
+    // it, above), and not while pinned under a shut shutter.
+    const reaching = p.profile.flight === 'superjump' && !p.grounded && w.stand && onIt > 1.2
+      && p.position.y < w.at.y + 4 && Math.abs(p.velocity.y) > 0.5;
+    if ((p.position.y < wantY - 0.3 || reaching) && !resting) {
       out.jumpHeld = true;
       if (p.grounded) out.jumpPressed = true;
     }

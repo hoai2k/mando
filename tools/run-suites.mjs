@@ -125,6 +125,8 @@ const SUITES = [
   { name: 'test-footwork', weight: 30 },
   // the Glacier Chute's slide: melee from it, the stance on the ice, the steering
   { name: 'test-glacier-slide', weight: 60 },
+  // the super jump's cap, the tucked saber deflect, air strikes and the plunge
+  { name: 'test-airborne', weight: 60 },
   // `harness` is not here on purpose: it is the smoke every push to main
   // already runs (deploy.yml), the nightly only runs when main has moved, and
   // the menu path it walks is walked again by check-flight-poses,

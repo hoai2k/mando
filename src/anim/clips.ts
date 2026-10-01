@@ -690,6 +690,94 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', [0, 0.6], [[-114.1, 0, 15.7], [-114.1, 0, 15.7]]),
   ]);
 
+  // The same ball for a fighter with lit blades (the saber acrobats keep them
+  // out through the roll). Wrapping the arms round the shins would drive both
+  // blades through the thighs, so the elbows stay in at the ribs, the fists
+  // ride either side of the knees and the wrists are cocked right back: the
+  // blades lie up and back over the shoulders, a hand's width off the body,
+  // one each side, and trail round with the spin. Fitted against the authored
+  // sculpts' blades (clear of every body segment by ~0.15 m on Ventress).
+  clips.tuckSaberUpper = new THREE.AnimationClip('tuckSaberUpper', 0.6, [
+    qt('chest', [0, 0.3, 0.6], [[26.8, 0.1, 0.9], [29.8, 0.1, 0.9], [26.8, 0.1, 0.9]]),
+    qt('head', [0, 0.6], [[18, 0, 0], [18, 0, 0]]),
+    qt('upperArmL', [0, 0.3, 0.6], [[-34, -6, 45], [-37, -6, 46], [-34, -6, 45]]),
+    qt('forearmL', [0, 0.6], [[-92, -10, -6], [-92, -10, -6]]),
+    qt('handL', [0, 0.6], [[-80, 0, 40], [-80, 0, 40]]),
+    qt('upperArmR', [0, 0.3, 0.6], [[-34, 6, -45], [-37, 6, -46], [-34, 6, -45]]),
+    qt('forearmR', [0, 0.6], [[-92, 10, 6], [-92, 10, 6]]),
+    qt('handR', [0, 0.6], [[-80, 0, -40], [-80, 0, -40]]),
+  ]);
+
+  // ---------- UPPER/LOWER: the aerial strike (melee in the air) ----------
+  //
+  // A cut thrown from the air at whatever is under and ahead of you: cocked
+  // high over the right shoulder, a short hang, then a steep diagonal chop
+  // down across the body that finishes low on the left, the chest folding
+  // over it so the blade travels *down* through the space below the boots
+  // rather than level with the shoulders. Contact sits at 45% of the clip
+  // like every other swing (player.ts), inside the cut (0.15 → 0.23).
+  clips.airSlashUpper = new THREE.AnimationClip('airSlashUpper', 0.42, [
+    qt('chest', [0, 0.15, 0.23, 0.42], [[-12, -24, 0], [-16, -30, 0], [30, 24, 0], [14, 6, 0]]),
+    qt('upperArmR', [0, 0.15, 0.23, 0.42], [[-150, -20, 18], [-162, -26, 20], [-28, 40, -6], [-40, 10, 4]]),
+    qt('forearmR', [0, 0.15, 0.23, 0.42], [[-72, 0, 0], [-82, 0, 0], [-4, 0, 0], [-30, 0, 0]]),
+    qt('upperArmL', [0, 0.15, 0.23, 0.42], [[-30, 10, 52], [-38, 12, 60], [-20, 4, 40], [-24, 4, 42]]),
+    qt('forearmL', [0, 0.23, 0.42], [[-46, -14, -18], [-24, -18, -22], [-32, -16, -20]]),
+    qt('head', [0, 0.15, 0.23, 0.42], [[-6, 14, 0], [-8, 16, 0], [16, -8, 0], [8, 0, 0]]),
+  ]);
+  // the legs ride the cut: knees drawn up under the cock, then kicked back as
+  // the chest folds forward over the chop, so the whole body whips round it
+  clips.airSlashLower = new THREE.AnimationClip('airSlashLower', 0.42, [
+    pt('hips', [0, 0.42], [[0, hipY, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.15, 0.23, 0.42], [[-6, 10, 0], [-8, 12, 0], [12, -10, 0], [6, 0, 0]]),
+    qt('upperLegL', [0, 0.15, 0.23, 0.42], [[-62, 0, 6], [-70, 0, 6], [-18, 0, 6], [-34, 0, 4]]),
+    qt('lowerLegL', [0, 0.15, 0.23, 0.42], [[84, 0, 0], [92, 0, 0], [40, 0, 0], [58, 0, 0]]),
+    qt('upperLegR', [0, 0.15, 0.23, 0.42], [[-30, 0, -6], [-36, 0, -6], [14, 0, -6], [-10, 0, -4]]),
+    qt('lowerLegR', [0, 0.15, 0.23, 0.42], [[64, 0, 0], [72, 0, 0], [52, 0, 0], [40, 0, 0]]),
+  ]);
+
+  // ---------- UPPER/LOWER: the plunge (smashing down to the ground) ----------
+  //
+  // Held all the way down: the chest folded over the drop, the arms swept back
+  // and the wrists turned so the weapon points down and ahead at where the
+  // body is going to land, legs together and straight under it like a dropped
+  // stake. Fitted against the authored sculpts' blades (pointing down-forward,
+  // ~0.35 m clear of the body on Ventress). The landing plays
+  // `plungeSmashUpper` — the weapon driven into the ground — over the deep
+  // landing crouch.
+  clips.plungeUpper = new THREE.AnimationClip('plungeUpper', 1.2, [
+    qt('chest', [0, 0.14, 1.2], [[6, 0, 0], [24, 0, 0], [24, 0, 0]]),
+    qt('upperArmL', [0, 0.14, 1.2], [[-30, 14, 30], [26, 14, 38], [26, 14, 38]]),
+    qt('forearmL', [0, 0.14, 1.2], [[-50, 0, 0], [-30, 0, 0], [-30, 0, 0]]),
+    qt('handL', [0, 0.14, 1.2], [[0, 0, 0], [40, 0, -40], [40, 0, -40]]),
+    qt('upperArmR', [0, 0.14, 1.2], [[-30, -14, -30], [26, -14, -38], [26, -14, -38]]),
+    qt('forearmR', [0, 0.14, 1.2], [[-50, 0, 0], [-30, 0, 0], [-30, 0, 0]]),
+    qt('handR', [0, 0.14, 1.2], [[0, 0, 0], [40, 0, 40], [40, 0, 40]]),
+    qt('head', [0, 0.14, 1.2], [[6, 0, 0], [20, 0, 0], [20, 0, 0]]),
+  ]);
+  clips.plungeLower = new THREE.AnimationClip('plungeLower', 1.2, [
+    pt('hips', [0, 1.2], [[0, hipY, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.14, 1.2], [[0, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
+    qt('upperLegL', [0, 0.14, 1.2], [[-24, 0, 4], [-6, 0, 2], [-6, 0, 2]]),
+    qt('lowerLegL', [0, 0.14, 1.2], [[40, 0, 0], [14, 0, 0], [14, 0, 0]]),
+    qt('footL', [0, 0.14, 1.2], [[10, 0, 0], [24, 0, 0], [24, 0, 0]]),
+    qt('upperLegR', [0, 0.14, 1.2], [[-14, 0, -4], [-4, 0, -2], [-4, 0, -2]]),
+    qt('lowerLegR', [0, 0.14, 1.2], [[30, 0, 0], [10, 0, 0], [10, 0, 0]]),
+    qt('footR', [0, 0.14, 1.2], [[10, 0, 0], [24, 0, 0], [24, 0, 0]]),
+  ]);
+  // the smash: the swept-back arms whipped through and down into the dirt in
+  // front of the boots as the chest drives over them, then back to a guard
+  clips.plungeSmashUpper = new THREE.AnimationClip('plungeSmashUpper', 0.5, [
+    qt('chest', [0, 0.08, 0.5], [[24, 0, 0], [38, 0, 0], [8, 0, 0]]),
+    qt('upperArmL', [0, 0.08, 0.5], [[26, 14, 38], [-52, 10, 26], [-22, 2, 42]]),
+    qt('forearmL', [0, 0.08, 0.5], [[-30, 0, 0], [-14, 0, 0], [-30, -18, -22]]),
+    qt('handL', [0, 0.08, 0.5], [[40, 0, -40], [20, 0, -20], [0, 0, 0]]),
+    qt('upperArmR', [0, 0.08, 0.5], [[26, -14, -38], [-52, -10, -26], [-30, 0, 8]]),
+    qt('forearmR', [0, 0.08, 0.5], [[-30, 0, 0], [-14, 0, 0], [-25, 0, 0]]),
+    qt('handR', [0, 0.08, 0.5], [[40, 0, 40], [20, 0, 20], [0, 0, 0]]),
+    qt('head', [0, 0.08, 0.5], [[20, 0, 0], [-6, 0, 0], [0, 0, 0]]),
+  ]);
+
+
   // ---------- LOWER/UPPER: swimming (a front crawl) ----------
   //
   // The controller pitches the whole body prone while swimming, so these move
