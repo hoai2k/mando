@@ -30,6 +30,9 @@ export function composeMoves(...moves: (SectionMove | null | undefined)[]): Sect
     crouch(p: Player): boolean {
       return list.some((m) => m.crouch?.(p) ?? false);
     },
+    carried(p: Player): boolean {
+      return list.some((m) => m.carried?.(p) ?? false);
+    },
     meleeHit(p: Player, target: Combatant, amount: number, game: Game): number {
       let dmg = amount;
       for (const m of list) if (m.meleeHit) dmg = m.meleeHit(p, target, dmg, game);

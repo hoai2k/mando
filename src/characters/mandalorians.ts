@@ -2,7 +2,7 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
 import { buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, type CharacterInstance } from './builder';
-import { attachAuthored, type ModelId } from './authored';
+import { attachAuthored, type ModelId, type SoleMark } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
 import { dinMeleeVariants, saberParryClips } from '../workbench/combatStudies';
@@ -56,6 +56,12 @@ export interface PlayerCharacter extends CharacterInstance {
   nozzles: THREE.Object3D[];
   /** true once the authored .glb has replaced the procedural body */
   modelReady: () => boolean;
+  /**
+   * The feet the player sees — the authored ankles once the model is on, the
+   * rig's before — each with its ankle's height over the sole, for planting
+   * a pose on the ground (the slide). Absent on a body with no feet to plant.
+   */
+  feet?: () => readonly SoleMark[];
 }
 
 /** visual height per character, used to size an authored model */
@@ -770,6 +776,9 @@ export function buildMandalorian(id: MandoId,
     },
   });
 
+  // the procedural build's ankles stand on its soles (skeleton.ts)
+  const rigFeet: SoleMark[] = [{ bone: rig.bones.footL, ankle: 0 }, { bone: rig.bones.footR, ankle: 0 }];
+
   let thrust = 0;
   // A grip editor can temporarily change the transform while the clip stays
   // fixed. Reapply only when the clip changes so the editor retains control.
@@ -810,6 +819,7 @@ export function buildMandalorian(id: MandoId,
     get muzzle() { return gun?.muzzle ?? emptyMuzzle; },
     get gaffi() { return blade.main; },
     modelReady: () => swap.settled,
+    feet: () => swap.model?.feet.length === 2 ? swap.model.feet : rigFeet,
     setWeapon: (w) => { weapon = w; showWeapon(); },
     setRangedKind: (kind: RangedKind) => { gun = guns.get(kind) ?? gun; showWeapon(); },
     setMeleeKind: (kind: MeleeKind) => { blade = blades.get(kind) ?? blade; showWeapon(); },

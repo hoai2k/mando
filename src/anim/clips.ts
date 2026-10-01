@@ -425,6 +425,34 @@ function makeClips(p: Proportions): ClipSet {
     qt('lowerLegR', [0, 0.45, 0.9], [[101, 0, 0], [109, 0, 0], [101, 0, 0]]),
   ]);
 
+  // The slide (K7's surf on the Glacier Chute): feet first down the ice, the
+  // weight back over the heels. A held pose, not a cycle — the body is being
+  // carried, not stepping. The hips recline the whole torso 40° (the upper
+  // clips' arms and swings ride on top of it, so a saber still comes round
+  // from a body lying back into the run); the thighs are set against that so
+  // the lead leg reaches 50° forward of plumb with the knee soft and the
+  // toes up, and the trailing leg a half-step back with its boot flat. Both
+  // ankles come out within a few centimetres of one height under the hips.
+  //
+  // The player tips the whole body onto the slope and sets the lowest sole on
+  // the ice after this (SLIDE_POSE, `Player.syncVisual`), so the hip drop here
+  // is the canonical rig's and an authored body with other legs still lands
+  // on its boots.
+  clips.slideLower = new THREE.AnimationClip('slideLower', 1, [
+    pt('hips', [0, 1], [[0, hipY - 0.15, 0], [0, hipY - 0.15, 0]]),
+    qt('hips', [0, 1], [[-40, 0, 0], [-40, 0, 0]]),
+    qt('spine', [0, 1], [[8, 0, 0], [8, 0, 0]]),
+    // lead (left) leg: world thigh −50°, shin −20°, foot 8° toes-up
+    qt('upperLegL', [0, 1], [[-10, 0, 8], [-10, 0, 8]]),
+    qt('lowerLegL', [0, 1], [[30, 0, 0], [30, 0, 0]]),
+    qt('footL', [0, 1], [[12, 0, 0], [12, 0, 0]]),
+    // trailing (right) leg: world thigh −45°, shin +20°, foot flat — both
+    // boots ahead of the hips, the trailing one a half-step back
+    qt('upperLegR', [0, 1], [[-5, 0, -9], [-5, 0, -9]]),
+    qt('lowerLegR', [0, 1], [[65, 0, 0], [65, 0, 0]]),
+    qt('footR', [0, 1], [[-20, 0, 0], [-20, 0, 0]]),
+  ]);
+
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),

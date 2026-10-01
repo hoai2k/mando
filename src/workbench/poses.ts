@@ -56,6 +56,7 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'crouch', name: 'Crouch — in cover', lower: 'coverLower', upper: 'idleUpper' },
   { rig: 'humanoid', id: 'crouchPeek', name: 'Crouch — peek and aim', lower: 'coverLower', upper: 'aimUpper' },
   { rig: 'humanoid', id: 'crouchWalk', name: 'Crouch — walk (low passage)', lower: 'crouchWalkLower', upper: 'idleUpper' },
+  { rig: 'humanoid', id: 'slide', name: 'Slide — feet first (glacier chute)', lower: 'slideLower', upper: 'idleUpper' },
   { rig: 'humanoid', id: 'swim', name: 'Swimming — front crawl', lower: 'swimLower', upper: 'swimUpper' },
   { rig: 'humanoid', id: 'fly', name: 'Jetpack — cruise (forward + up)', lower: 'flyLower', upper: 'flyUpper', thrust: 1 },
   { rig: 'humanoid', id: 'flyRise', name: 'Jetpack — hover / straight up', lower: 'flyRiseLower', upper: 'flyRiseUpper', thrust: 1 },

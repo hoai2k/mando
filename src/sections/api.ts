@@ -126,6 +126,12 @@ export interface SectionMove {
   /** hold the body in the crouched pose this frame (K7's surf) */
   crouch?(p: Player): boolean;
   /**
+   * The section's own locomotion is carrying the body this frame (K7's
+   * slide): a swing plays on the arms and lands as normal, but neither lunges
+   * nor plants the feet — the velocity and the legs stay the section's.
+   */
+  carried?(p: Player): boolean;
+  /**
    * A melee hit is about to land on `target` for `amount`: return the damage
    * it should do instead (Lights Out's silent takedown, K6). Called from the
    * player's `landHit`, before the damage is dealt.
