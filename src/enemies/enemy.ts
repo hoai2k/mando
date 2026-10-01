@@ -134,10 +134,9 @@ const SLAM_CD = 5;
  *     parries it out of the air.
  *   - **plunge** — Maul and the officer: a high leap to over the target's
  *     line, then a dive into the ground and a ring of shock around the
- *     landing (`plungeUpper` → `plungeSmashUpper`). The ember ring drawn on
- *     the ground where it will land is the get-out line, as it is for the
- *     enforcer's slam; each body inside still meets the weapon through
- *     `resolveClash`.
+ *     landing (`plungeUpper` → `plungeSmashUpper`). No marker on the
+ *     ground: the leap itself is the warning. Each body inside still meets
+ *     the weapon through `resolveClash`.
  *
  * Both are telegraphed by a crouch (AIR_GATHER s, sparks off the weapon and a
  * bark) before the feet leave the ground, open only from AIR_MIN to AIR_MAX
@@ -770,8 +769,6 @@ export class Enemy {
   private airFlown = 0;
   /** spacing between attacks from the air; starts nearly spent, so a fight at range opens with one */
   private airCd = 0.5 + Math.random();
-  /** where the plunge is going to land, for its ember ring */
-  private airAim = new THREE.Vector3();
   private airPeak = 0;
   /** the strike was met (parried) or has landed: nothing more comes of this one */
   private airSpent = false;
@@ -3186,14 +3183,6 @@ export class Enemy {
         this.velocity.y = -AIR_PLUNGE_DIVE;
         this.windupStartedAt = game.time;
       }
-      // the ember ring where it lands, at 16 Hz
-      if (Math.floor((this.airT + dt) * 16) !== Math.floor(this.airT * 16)) {
-        for (let i = 0; i < 3; i++) {
-          const a = Math.random() * Math.PI * 2;
-          _cue.set(this.airAim.x + Math.cos(a) * AIR_PLUNGE_RADIUS, this.airAim.y + 0.4, this.airAim.z + Math.sin(a) * AIR_PLUNGE_RADIUS);
-          game.particles.impactSparks(_cue, 3);
-        }
-      }
       this.airPeak = Math.max(this.airPeak, this.position.y);
       if (down) this.landPlunge(game);
       else if (this.airT < -2.5) this.endAirMove();
@@ -3276,7 +3265,6 @@ export class Enemy {
       const need = Math.min(20, Math.max(0, gap - 0.8) / total);
       this.velocity.set((ax / gap) * need, vy, (az / gap) * need);
       this.facingYaw = Math.atan2(ax, az);
-      this.airAim.set(this.position.x + (ax / gap) * need * total, target.position.y, this.position.z + (az / gap) * need * total);
       this.airT = total + 0.6;
       if (anim) {
         if (anim.clips.plungeUpper) anim.playOnce('upper', 'plungeUpper', 0.06);
