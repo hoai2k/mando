@@ -79,6 +79,16 @@ const BLOCKER_PAD = 0.35;
  * ones; this is the floor under the result, which cannot be stepped over.
  */
 const CAM_GROUND_CLEAR = 0.4;
+/**
+ * Points on the body the framing check projects onto the screen, as
+ * [share of the body's height, sideways in shoulder half-widths]: feet,
+ * knees, hips, chest, head, and both shoulders.
+ */
+const FRAME_POINTS: readonly (readonly [number, number])[] = [
+  [0.04, 0], [0.28, 0], [0.53, 0], [0.72, 0], [0.93, 0], [0.8, 1], [0.8, -1],
+];
+/** ...of which this one is the body's centre for "is it near the middle" */
+const FRAME_CHEST = 3;
 
 // ---- dynamic follow ----
 // The chase distance is the dialled-in `baseDist` times a pace multiplier, so
@@ -184,6 +194,25 @@ export class ThirdPersonCamera {
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
   private tmpBack = new THREE.Vector3();
+  private tmpBase = new THREE.Vector3();
+  private tmpSide = new THREE.Vector3();
+  private tmpUp = new THREE.Vector3();
+  private tmpEye = new THREE.Vector3();
+  private tmpHead = new THREE.Vector3();
+  private tmpPt = new THREE.Vector3();
+  private tmpR = new THREE.Vector3();
+  private tmpU = new THREE.Vector3();
+  /**
+   * Framing state: the share of the shoulder step in use (1 = the tuned one)
+   * and how far the pivot is lifted, both eased; and the room this frame's
+   * probes found beside and above the head, which caps them.
+   */
+  private frameK = 1;
+  private frameH = 0;
+  private frameInit = false;
+  private roomRight = Infinity;
+  private roomLeft = Infinity;
+  private upRoom = Infinity;
   /**
    * Bodies too big to see past, as cylinders: the game refreshes this list in
    * place every frame, so the camera holds the array rather than a copy.
@@ -306,6 +335,74 @@ export class ThirdPersonCamera {
     return [hold <= 0 ? damp(cur, want, T.closeLambda, dt) : cur, hold];
   }
 
+  /**
+   * Where the lens goes for a shoulder share `k` (negative: over the left
+   * shoulder) and lift `h`: the pivot is stepped out (never through a wall at
+   * the side) and up (never through a
+   * ceiling), then the chase ray runs back from it and stops short of
+   * whatever it hits, exactly as it always has. Writes the eye to `eye` and
+   * the pivot to `head`, and returns `head`.
+   */
+  private place(base: THREE.Vector3, shoulder: number, k: number, h: number,
+    back: THREE.Vector3, physics: PhysicsWorld, eye: THREE.Vector3, head: THREE.Vector3): THREE.Vector3 {
+    const { rightX, rightZ } = yawBasis(this.yaw);
+    const step = k >= 0 ? Math.min(shoulder * k, this.roomRight) : -Math.min(-shoulder * k, this.roomLeft);
+    head.copy(base);
+    head.x += rightX * step;
+    head.z += rightZ * step;
+    head.y += Math.min(h, this.upRoom) * this.scale;
+    const reach = this.dist + 0.3;
+    const hit = physics.raycast(head, back, reach);
+    let stop = hit ? Math.max(hit.dist - 0.25, 0.3) : this.dist;
+    // ...and with the big bodies, which are not in the world's colliders
+    for (const b of this.blockers) {
+      const bh = rayCylinder(head, back, b, reach);
+      if (bh) stop = Math.min(stop, Math.max(bh.dist - BLOCKER_PAD, 0.3));
+    }
+    eye.copy(head).addScaledVector(back, Math.min(stop, this.dist));
+    // The ground is a floor under all of it: never below the surface, whatever
+    // the march between its samples missed.
+    if (physics.heightAt) {
+      const floor = physics.heightAt(eye.x, eye.z) + CAM_GROUND_CLEAR;
+      if (eye.y < floor) eye.y = floor;
+    }
+    return head;
+  }
+
+  /**
+   * How well a lens at `eye` looking along `dir` frames the body: points on
+   * it (feet, knees, hips, chest, both shoulders, head) projected onto the
+   * screen. 1 means it passes — at least `minVis` of them on screen and the
+   * chest inside the central `framingCentre` of it; under 1 is a score to
+   * rank the failures by (more of the body on screen, chest nearer the middle).
+   * `slack` shrinks the screen it counts as inside, for hysteresis.
+   */
+  private framing(eye: THREE.Vector3, dir: THREE.Vector3, feet: THREE.Vector3,
+    bodyH: number, tanV: number, aspect: number, minVis: number, slack = 0): number {
+    const r = this.tmpR.crossVectors(dir, this.tmpUp.set(0, 1, 0));
+    if (r.lengthSq() < 1e-6) r.set(1, 0, 0);
+    r.normalize();
+    const u = this.tmpU.crossVectors(r, dir);
+    const tanH = tanV * aspect;
+    const sh = this.reach * 0.45;
+    let inside = 0;
+    let chestOff = 4;
+    for (let i = 0; i < FRAME_POINTS.length; i++) {
+      const [hy, sx] = FRAME_POINTS[i];
+      const p = this.tmpPt.set(feet.x + r.x * sx * sh, feet.y + bodyH * hy, feet.z + r.z * sx * sh).sub(eye);
+      const z = p.dot(dir);
+      if (z <= 0.12) continue;
+      const x = p.dot(r) / (z * tanH);
+      const y = p.dot(u) / (z * tanV);
+      if (Math.abs(x) <= 1 - slack && Math.abs(y) <= 1 - slack) inside++;
+      if (i === FRAME_CHEST) chestOff = Math.max(Math.abs(x), Math.abs(y));
+    }
+    const frac = inside / FRAME_POINTS.length;
+    if (frac >= minVis && chestOff <= T.framingCentre - slack) return 1;
+    return 0.63 * Math.min(frac / Math.max(minVis, 1e-3), 1)
+      + 0.27 * clamp(1 - (chestOff - T.framingCentre) / 2, 0, 1);
+  }
+
   update(dt: number, feetPos: THREE.Vector3, physics: PhysicsWorld, opts: CameraMotion): void {
     if (this.snapT > 0) {
       this.snapT -= dt;
@@ -343,39 +440,109 @@ export class ThirdPersonCamera {
     this.camera.fov = this.fov;
     this.camera.updateProjectionMatrix();
 
-    const head = this.tmpTarget.copy(feetPos);
-    head.y += this.eye * (opts.crouching ? 0.72 : 1);
+    // the body's own head, before any over-the-shoulder step
+    const base = this.tmpBase.copy(feetPos);
+    const crouch = opts.crouching ? 0.72 : 1;
+    base.y += this.eye * crouch;
     // over-the-right-shoulder offset, matching the right-handed carbine
     const { rightX, rightZ } = yawBasis(this.yaw);
     // A wide body needs the step out to clear its own flank, or the shoulder
     // view is a view of the shoulder. Only ever outward: a body narrower than
     // the reference keeps the offset that was tuned for it, rather than having
     // it quietly shaved because it measured a few centimetres under.
-    const shoulder = (opts.aiming ? SHOULDER_AIM : SHOULDER_HIP)
-      * clamp(this.reach / REF_REACH, 1, MAX_SHOULDER_SCALE);
-    head.x += rightX * shoulder;
-    head.z += rightZ * shoulder;
-
+    const shoulderScale = clamp(this.reach / REF_REACH, 1, MAX_SHOULDER_SCALE);
+    const shoulder = (opts.aiming ? SHOULDER_AIM : SHOULDER_HIP) * shoulderScale;
     this.aimDir(this.tmpDir);
-    this.tmpDesired.copy(head).addScaledVector(this.tmpDir, -this.dist);
-
-    // collide camera with world
     const back = this.tmpBack.copy(this.tmpDir).multiplyScalar(-1);
-    const reach = this.dist + 0.3;
-    const hit = physics.raycast(head, back, reach);
-    let stop = hit ? Math.max(hit.dist - 0.25, 0.3) : this.dist;
-    // ...and with the big bodies, which are not in the world's colliders
-    for (const b of this.blockers) {
-      const bh = rayCylinder(head, back, b, reach);
-      if (bh) stop = Math.min(stop, Math.max(bh.dist - BLOCKER_PAD, 0.3));
+
+    // ---- framing: keep the body on screen ----
+    // The shoulder step is a fixed sideways distance, so once a wall pulls the
+    // lens in close the same 0.55 m that opens up the sightline out in the open
+    // puts the body beside the camera instead of in front of it: backed onto a
+    // wall the lens sat 0.3 m behind the shoulder pivot and the body projected
+    // more than a screen-width off to the left. So the step is scaled by
+    // `frameK` (and the pivot lifted by `frameH`), eased toward whatever keeps
+    // most of the body in shot; the collision in `place` stays authoritative,
+    // and in the open the tuned framing passes on its own and nothing changes.
+    const side = this.tmpSide.set(rightX, 0, rightZ);
+    const sideReach = shoulder + T.shoulderWallPad;
+    const hitR = physics.raycast(base, side, sideReach);
+    this.roomRight = hitR ? Math.max(hitR.dist - T.shoulderWallPad, 0) : shoulder;
+    // the left side and the headroom only matter once framing is in play, so
+    // out in the open they are not probed at all
+    this.roomLeft = 0;
+    this.upRoom = 0;
+    let probed = false;
+    const probe = (): void => {
+      if (probed) return;
+      probed = true;
+      if (T.shoulderSwap > 0) {
+        const hitL = physics.raycast(base, this.tmpSide.set(-rightX, 0, -rightZ), sideReach);
+        this.roomLeft = hitL ? Math.max(hitL.dist - T.shoulderWallPad, 0) : shoulder;
+      }
+      if (T.framingRaise > 0) {
+        const upHit = physics.raycast(base, this.tmpUp.set(0, 1, 0), T.framingRaise * this.scale + T.shoulderWallPad);
+        this.upRoom = upHit ? Math.max(upHit.dist - T.shoulderWallPad, 0) / this.scale : T.framingRaise;
+      }
+    };
+    if (this.frameK < 0 || this.frameH > 0) probe();
+    const floorK = Math.min(1, (T.shoulderFloor * shoulderScale) / Math.max(shoulder, 1e-3));
+    const minVis = opts.aiming ? T.framingAimMinVisible : T.framingMinVisible;
+    const tanV = Math.tan((this.fov * Math.PI) / 360);
+    const bodyH = this.eye * (REF_HEIGHT / REF_EYE) * crouch;
+    const score = (k: number, h: number, slack = 0): number => {
+      this.place(base, shoulder, k, h, back, physics, this.tmpEye, this.tmpHead);
+      return this.framing(this.tmpEye, this.tmpDir, feetPos, bodyH, tanV, this.camera.aspect, minVis, slack);
+    };
+    // the tuned framing first: out in the open it passes and that is the end of it
+    let wantK = 1;
+    let wantH = 0;
+    // Once framing has taken over, the tuned framing has to pass with a little
+    // room to spare before it is handed back, or a body standing right on the
+    // edge of passing would have the camera tugged in and out every frame.
+    const engaged = this.frameK !== 1 || this.frameH !== 0;
+    const tunedOk = score(1, 0, engaged ? T.framingHysteresis : 0) >= 1;
+    if (!tunedOk) {
+      probe();
+      // Nothing to do but look for a framing that does pass: slide in off the
+      // right shoulder first, then (if allowed) over the left one, then the
+      // same again lifted. The side the camera is already on goes first, and
+      // the other side has to beat it by a margin, so it never flip-flops.
+      const right = [1, 0.75, 0.5, 0.25, 0].map((k) => Math.max(k, floorK));
+      const left = T.shoulderSwap > 0
+        ? [floorK, 0.5, 0.75, 1].filter((k) => k <= T.shoulderSwap).map((k) => -Math.max(k, floorK))
+        : [];
+      const sides = this.frameK < 0 ? [left, right] : [right, left];
+      let best = -Infinity;
+      search: for (const h of [0, T.framingRaise]) {
+        for (let si = 0; si < sides.length; si++) {
+          const margin = si === 0 ? 0 : T.framingSwapMargin;
+          for (const k of sides[si]) {
+            const sc = score(k, h);
+            // strictly better only, so ties keep the wider shoulder / lower lens
+            if ((sc >= 1 && best < 1) || sc > best + margin + 1e-6) { best = sc; wantK = k; wantH = h; }
+            if (best >= 1) break search;
+          }
+        }
+      }
     }
-    if (stop < this.dist) this.tmpDesired.copy(head).addScaledVector(back, stop);
-    // The ground is a floor under all of it: never below the surface, whatever
-    // the march between its samples missed.
-    if (physics.heightAt) {
-      const floor = physics.heightAt(this.tmpDesired.x, this.tmpDesired.z) + CAM_GROUND_CLEAR;
-      if (this.tmpDesired.y < floor) this.tmpDesired.y = floor;
+    if (!this.frameInit) {
+      this.frameK = wantK; this.frameH = wantH; this.frameInit = true;
+    } else {
+      // Easing in off the shoulder (or across to the left one) is quick: the
+      // body is leaving the frame. Easing back out to the tuned right-shoulder
+      // framing is slow, so the camera drifts back rather than snapping, and
+      // a wall closing in stops it short instead of pushing on past the body.
+      this.frameK = damp(this.frameK, wantK, wantK < this.frameK ? T.framingInLambda : T.framingOutLambda, dt);
+      this.frameH = damp(this.frameH, wantH, wantH > this.frameH ? T.framingInLambda : T.framingOutLambda, dt);
+      // the last millimetre is the target, so a settled camera is exactly settled
+      if (Math.abs(this.frameK - wantK) < 1e-3) this.frameK = wantK;
+      if (Math.abs(this.frameH - wantH) < 1e-3) this.frameH = wantH;
     }
+    // settled on the tuned framing: that is the placement already worked out
+    const head = tunedOk && this.frameK === 1 && this.frameH === 0
+      ? (this.tmpDesired.copy(this.tmpEye), this.tmpTarget.copy(this.tmpHead))
+      : this.place(base, shoulder, this.frameK, this.frameH, back, physics, this.tmpDesired, this.tmpTarget);
 
     // hand-off glide: blend from the stored start toward the live chase
     // framing, so a body swap flies the view over instead of cutting
