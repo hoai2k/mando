@@ -24,8 +24,9 @@ import { loadOptionalTexture } from '../core/assets';
  * brood's caverns begin (Lamplight).
  *
  * **The verb is the slide** (K7, `kit/locomotion.ts`): gravity down the fall
- * line, the stick carving the heading, pull back to dig in, jump and jetpack
- * as normal, hip-fire and the slide kick. **The escalation**:
+ * line, the stick a sideways push on slippery ice (a turn drifts), pull back
+ * to dig in, jump and jetpack as normal, hip-fire, and the fighter's own
+ * melee swung from the slide. **The escalation**:
  *
  * 1. *The drop.* The floor goes, a 25° pitch, and speed arrives all at once.
  * 2. *The banked S.* Walls to ride up, spiders on the banks, one small

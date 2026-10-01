@@ -173,6 +173,12 @@ const CANON_DIR: Partial<Record<BoneName, THREE.Vector3>> = {
 const norm = (n: string): string => n.replace(/[.\s:[\]]/g, '');
 
 /** one bone of the authored skeleton, flattened parents-first for retargeting */
+/**
+ * A foot, for putting it on the ground: the bone at the ankle, and how far
+ * that ankle stands over the sole beneath it in the rest pose, in metres.
+ */
+export interface SoleMark { bone: THREE.Object3D; ankle: number }
+
 interface AuthoredNode {
   obj: THREE.Object3D;
   parent: number;              // index into the same array, -1 at the top
@@ -222,6 +228,8 @@ export interface AuthoredModel {
   holsterMount: THREE.Object3D | null;
   /** hips bone, driven positionally as well as rotationally */
   hips: THREE.Object3D | null;
+  /** the ankle bones (left, right) and each one's height over its sole at rest */
+  feet: SoleMark[];
   /** metres per model unit, for anything measured in world space */
   scale: number;
   /** source scene rotation, for rigs whose skeleton is nested under an oriented root */
@@ -761,6 +769,17 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
   collect(root, -1);
 
+  // The ankles, and how far each stands over its sole. The model is standing
+  // on y = 0 in its rest pose right now, so an ankle's height here is the
+  // whole of it — which differs a lot by sculpt (Din's sits ~15 cm up, on a
+  // short thigh and a high knee), and is what grounds a pose the canonical
+  // rig's numbers cannot (the slide's, `Player.syncVisual`).
+  const feet: SoleMark[] = [];
+  for (const side of ['footL', 'footR'] as const) {
+    const node = nodes.find((n) => n.canonical === side);
+    if (node) feet.push({ bone: node.obj, ankle: Math.max(0, node.obj.getWorldPosition(new THREE.Vector3()).y) });
+  }
+
   // Both bones are reparented under spine.004 above. Move them by the same
   // amount so the clavicle and arm socket travel together, while the torso
   // skin between chest and shoulder supplies the small stretch.
@@ -874,6 +893,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     weaponMountL,
     holsterMount,
     hips: nodes.find((n) => n.canonical === 'hips')?.obj ?? null,
+    feet,
     scale,
     boneBasis,
     boneBasisInverse,

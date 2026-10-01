@@ -95,8 +95,15 @@ channel (`SlideLane`: axis, signed side, floor half-width, bank width),
 - **Gravity along the slope** — only on the heightfield (a box underfoot is
   flat ground): `pull · n.y · (n.x, n.z)`.
 - **Traction ≈ 0** — no damping toward the stick; only drag `0.0064 · v²`.
-- **Steering** — the stick's X *rotates the velocity* at a lateral
-  acceleration of 11 m/s² (3.5 in the air): it carves, it does not add speed.
+- **Steering** — the stick's X is a *force across the channel* (the lane's
+  axis; off the lane, the travel), 15 m/s² (3.5 in the air), not a heading
+  change. Sideways momentum carries over: the ice only takes `lateralGrip`
+  0.35/s of it, so a turn drifts on after the stick lets go. Edging *out*
+  (pushing the way you already slide across, or downhill on a bank —
+  `steerTilt` 0.3 s of the cross-slope pull counts as momentum) bites ×1.3;
+  digging back *in* against it ×0.55; with no sideways momentum both get the
+  mean. The asymmetry is full at 2 m/s across (`steerMomentum`), and the stick
+  cannot push past 12 m/s across (`maxLateral`).
 - **Push off** — stick forward under 7 m/s shoves at 6 m/s² (the flat, a stall).
 - **Dig in** — stick back: extra drag `0.4 · |y|` per second, spray.
 - **Banks and walls** — past the floor, outward velocity is turned back along
@@ -105,14 +112,31 @@ channel (`SlideLane`: axis, signed side, floor half-width, bank width),
   even flying).
 - **Crash** — into a standing hostile above 8 m/s: keep 35% of your speed, take
   10, it takes 12 and goes over. 0.8 s cooldown.
-- **Slide kick** — melee: reach 3.2 m + 0.12 m per m/s ahead of you, 22 damage,
-  a shove out of the lane and a 1.1 s knockdown; 0.55 s cooldown.
+- **Melee from the slide** — the fighter's own swing (staff, sabers, fists,
+  the melee-only heavy on Y), played on the arms while the legs keep the slide.
+  `SectionMove.carried` keeps the lunge and planted feet out of it, so the
+  speed stays the slide's. A swing that connects while sliding puts its target
+  down for 1.1 s and does at least 22, +0.6 per m/s over 8 (`meleeHit`). The
+  boots go out with the press and tear a web within 3.4 m (`onKick`, 0.55 s
+  cooldown). At slide speed the body covers ~4 m between the press and
+  the contact key, so a blade sweep alone met a spider in the lane only about
+  half the time; a carried swing that has struck nothing yet also lands by
+  reach from the opening of its contact window to its key (weapon reach + 0.12 m per m/s, out to ~110° round the
+  side; `CARRIED_SWING` in player.ts). (Was: a reach-based kick that swallowed the melee button, with no
+  animation, so saber users had nothing that read as an attack.)
 - **Buttons** — no sprint, no dodge, **hip-fire only** (aim is cleared).
 - **Camera** — while the look stick is idle: yaw swings to the direction of
   travel (λ 2.2), pitch tips down by half the slope. FOV already widens with
   speed through the camera's own pace term.
-- **Pose** — `crouch()` holds the crouched stride still (`crouchWalkLower` at
-  time scale 0) while grounded above 2.5 m/s.
+- **Pose** — `crouch()` holds `slideLower` (anim/clips.ts) while grounded
+  above 2.5 m/s: feet first, the torso reclined 40° by the hips, the lead leg
+  50° forward with the toes up, the trailing leg a half-step back, boot flat.
+  `Player.syncVisual` then tips the body onto the ice (0.75 of the pitch
+  along the facing, 0.8 of a bank's roll; `SLIDE_POSE`), brings the neck
+  forward so the eyes stay on the run, and lifts or lowers the body so the
+  lowest *visible* sole sits on the heightfield. Soles come from
+  `PlayerCharacter.feet()`: the authored ankles, with each sculpt's rest
+  ankle height measured at load (Din's ~15 cm), or the rig's.
 
 Tuning (`SLIDE` in the file): pull 16 and drag 0.0064 give ~19 m/s cruise on
 the fork's 11°, ~22 on the S, 26–28 on the final pitch (cap 28). Pull 11 felt
@@ -124,7 +148,7 @@ comes out at ~70 s for a clean bot line; players crash, fight and dig in.
 **For the next K7 mode.** `flightMove` should be a sibling factory in the same
 file, using the same two hooks: `adjust` for button meanings and `steer` for
 the horizontal velocity (return true), plus `crouch`/new pose hooks as needed.
-The shared helpers (`basis`, `rotate`) are at the bottom. The pose hook in
+The shared helper (`basis`) is at the bottom. The pose hook in
 `player.ts` is `SectionMove.crouch`; add a sibling rather than overloading it.
 
 ## Lamplight (`src/sections/lamplight.ts`)
@@ -219,8 +243,6 @@ at 1.5 m) — both with stand-ins.
 
 ## Known issues / left
 
-- The design's "slide pose" is a held frame of the crouch walk; a dedicated
-  surf clip would read better (Din's reads as a mid-stride crouch, Maul's well).
 - The design says "aim assist up one notch" while sliding; not done (hip-fire's
   own soft-lock applies).
 - "Camera slightly closer" in Lamplight is not done: the chase distance is the

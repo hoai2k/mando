@@ -6,7 +6,7 @@
  * test-sections proves the autopilot can get through each section; this
  * proves the verbs do what the design says they do — the ice pulls you down
  * the fall line, pulling back checks the speed, the stick carves, the walls
- * hold, the kick lands, a crevasse and the avalanche put you forward and not
+ * hold, a swing from the slide lands, a crevasse and the avalanche put you forward and not
  * back; the lamp lights what it points at, the brood shies from it until it
  * is bold, a focused beam dazzles, a flare drives them off, a brazier is a
  * pool they will not enter and three of them open the way.
@@ -83,8 +83,11 @@ const chute = await page.evaluate(async (blank) => {
   const lane = kit.laneAt(p.position.x, p.position.z);
   out.wallSide = lane ? Math.abs(lane.side) - (lane.s.half + lane.s.bank) : 99;
 
-  // 5. the slide kick: a spider in the lane, a press of melee
+  // 5. melee from the slide: a spider in the lane, a press of melee — the
+  // fighter's own swing, thrown from the ride (tools/test-glacier-slide.mjs
+  // has the rest of it)
   put(0, 170, 12);
+  step(1);      // x 0 is up the bank here: let the wall put the body back in the lane first
   const e = g.enemies.find((q) => q.alive && q.kind === 'krykna');
   out.hadSpider = !!e;
   if (e) {
@@ -92,7 +95,7 @@ const chute = await page.evaluate(async (blank) => {
     e.velocity.set(0, 0, 0);
     const hp = e.hp;
     step(1, { meleePressed: true });
-    step(2);
+    step(14);
     out.kickHurt = hp - e.hp;
     out.kickDown = e.downed || !e.alive;
   }
@@ -140,7 +143,7 @@ check('the stick carves the heading (right is −x going downhill) and keeps the
 check('the ice walls hold: stick hard over for four seconds, never out of the channel',
   chute.wallOutside === 0 && chute.wallSide <= 0.01, `outside ${chute.wallOutside}, past the wall ${chute.wallSide.toFixed(2)} m`);
 check('there is a spider to kick', chute.hadSpider);
-if (chute.hadSpider) check('the slide kick hurts it and puts it down', chute.kickHurt > 10 && chute.kickDown, `-${chute.kickHurt} hp`);
+if (chute.hadSpider) check('a swing from the slide hurts it and puts it down', chute.kickHurt > 10 && chute.kickDown, `-${chute.kickHurt} hp`);
 check('a crevasse re-forms you at the next gate, forward and alive',
   chute.crevAlive && chute.crevZ >= chute.crevGate, `z ${chute.crevZ.toFixed(0)} (gate at ${chute.crevGate})`);
 check('one hunter in the snowbank does not end it while another is still sliding', !chute.soloFinish);

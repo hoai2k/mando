@@ -410,6 +410,56 @@ const PASSAGE_SPEED = 2.6;
  * as a twitch; much longer and the brace is still arriving as the boots do.
  */
 const FLY_FADE = 0.26;
+
+/**
+ * The slide's stance on the body (K7's surf, sections/kit/locomotion.ts).
+ * `slideLower` (anim/clips.ts) carries the legs and the recline — feet first,
+ * the weight back over the heels; this carries the whole body onto the ice
+ * and plants it there.
+ */
+const SLIDE_POSE = {
+  /**
+   * How much of the slope's pitch along the facing the whole body tips by,
+   * so the boots lie along the ice rather than one heel digging into it. Not
+   * all of it: on a steep pitch part of the slope stays as the weight sitting
+   * further back.
+   */
+  pitchShare: 0.75,
+  /** the same across the body: a bank rolls it onto its edges */
+  rollShare: 0.8,
+  /** the most either is allowed to tip the body, radians */
+  maxTilt: 0.6,
+  /** how fast the tilt follows the ice, per second */
+  tiltRate: 8,
+  /** the head brought forward against the recline, radians, so the eyes stay on the run */
+  neckForward: 0.42,
+  /** how fast the stance comes on and goes, per second */
+  blendRate: 8,
+  /**
+   * The most the feet may move the body to sit on the ice, metres. Every
+   * sculpt's legs are their own length and its ankles their own height, so
+   * the canonical clip's hip drop leaves some boots in the ice and some above
+   * it; after the pose is on, the lowest sole is set on the surface under it.
+   */
+  maxGround: 0.6,
+};
+/**
+ * A swing thrown from the slide. At 20 m/s the body covers four metres between
+ * the press and the clip's contact key, so a blade sweep alone met a spider in
+ * the lane about half the time, depending on which side of the body the arc
+ * happened to come round. A swing that has struck nothing by its contact key
+ * therefore also lands, by reach, on what is in front of the body or just
+ * passing beside it, from the opening of its contact window to the key (until
+ * it has struck something) — about the reach the old slide kick had.
+ */
+const CARRIED_SWING = {
+  /** extra reach per m/s of ground speed, on top of the weapon's own */
+  reachPerSpeed: 0.12,
+  /** how far round the side it still lands: the dot with the facing (−0.35 ≈ 110°) */
+  minDot: -0.35,
+};
+const _soleUp = new THREE.Vector3();
+const _sole = new THREE.Vector3();
 /**
  * How far down the flight code looks for the ground, metres.
  *
@@ -696,6 +746,8 @@ export class Player {
   private meleeBare = false;
   /** the swing in hand is a kick: its contact sweeps the legs as well as the fists */
   private swingKick = false;
+  /** the swing in hand was thrown from a ride the section carries (the slide; CARRIED_SWING) */
+  private swingCarried = false;
   alive = true;
   kills = 0;
   team = 0;
@@ -744,6 +796,12 @@ export class Player {
   private tuckBlend = 0;
   /** the body lean the flight code asks for, kept apart from the somersault */
   private leanX = 0;
+  /** the slide's tip onto the ice: pitch and roll (SLIDE_POSE), and how far the stance is on */
+  private slideTiltX = 0;
+  private slideTiltZ = 0;
+  private slideBlend = 0;
+  /** metres the body is lifted (or lowered) to put its lowest sole on the ice */
+  slideGround = 0;
   /**
    * Which jetpack pose is on the body — hover/climb, cruise, descent or the
    * brace for the ground. Kept from frame to frame because `flightPose` uses
@@ -2560,8 +2618,9 @@ export class Player {
     // off the ground the next stride takes up the speed it lands at
     if (!this.grounded) this.gaitBlend = -1;
     if (this.autoCrouching || surf) {
-      // the surf is the crouched stride held still: knees bent, one foot leading
-      if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
+      // the surf is the feet-first slide: weight back, boots leading down the
+      // ice (`slideLower`; SLIDE_POSE tips it onto the slope in syncVisual)
+      if (surf) anim.play('lower', anim.clips.slideLower ? 'slideLower' : 'crouchWalkLower', 0.15, 0);
       else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
       else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
@@ -2952,8 +3011,13 @@ export class Player {
     const bones = this.char.rig?.bones as Record<string, THREE.Object3D> | undefined;
     let n = this.meleeBare ? 0 : weaponSegments(weaponMounts(this.char), this.swingSegs);
     if (n === 0) n = fistSegments(bones, this.swingSegs, this.swingKick);
+    const keyed = before < this.swingHitAt && this.swingT >= this.swingHitAt;
+    // a swing from the slide may land by reach anywhere from the opening of
+    // its contact to the key (CARRIED_SWING), until it has struck something
+    const carriedWindow = this.swingT >= open && before < this.swingHitAt && this.swingStruck.size === 0;
     if (n === 0) {
-      if (before < this.swingHitAt && this.swingT >= this.swingHitAt) this.strikeByReach(game);
+      const landed = carriedWindow && this.carriedStrike(game);
+      if (!landed && keyed) this.strikeByReach(game);
     } else if (this.swingT >= open && !this.swingDone) {
       this.swingReach = Math.max(this.swingReach, forwardReach(this.swingSegs, n, this.position, this.facingYaw));
       for (const e of game.hostilesFor(this)) {
@@ -2966,6 +3030,8 @@ export class Player {
         }
         if (this.swingDone) break;
       }
+      // from the slide, a sweep that has met nothing yet still lands by reach
+      if (carriedWindow && this.swingStruck.size === 0) this.carriedStrike(game);
     }
     // keep this frame's blade for next frame's sweep
     for (let i = 0; i < n; i++) {
@@ -3052,16 +3118,26 @@ export class Player {
    * `meleeRange` from the centre to the nearest of the target's volumes, in
    * the arc in front.
    */
-  private strikeByReach(game: Game): void {
+  private strikeByReach(game: Game, reach = this.meleeRange, minDot = 0.25): boolean {
     const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    let any = false;
     for (const e of game.hostilesFor(this)) {
-      if (!e.alive) continue;
+      if (!e.alive || this.swingStruck.has(e)) continue;
       const near = this.meleeNearest(e);
-      if (near.dist > this.meleeRange) continue;
-      if (near.toward.dot(facing) < 0.25) continue;
+      if (near.dist > reach) continue;
+      if (near.toward.dot(facing) < minDot) continue;
       this.swingStruck.add(e);
       this.landHit(e, near.toward, game);
+      any = true;
     }
+    return any;
+  }
+
+  /** a swing from the slide landing by reach (CARRIED_SWING); false when it is not one, or met nobody */
+  private carriedStrike(game: Game): boolean {
+    if (!this.swingCarried || !this.sectionMove?.carried?.(this)) return false;
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    return this.strikeByReach(game, this.meleeRange + CARRIED_SWING.reachPerSpeed * speed, CARRIED_SWING.minDot);
   }
 
   /**
@@ -3446,8 +3522,12 @@ export class Player {
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
       audio.melee(this.meleeStep, this.swingSound);
-      // lunge toward nearest enemy in front (fists don't carry as far)
-      const target = this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
+      // lunge toward nearest enemy in front (fists don't carry as far). A
+      // body the section is carrying (the slide) swings from where it is
+      // going: no lunge to steal its momentum, and no planted feet.
+      const carried = !!this.sectionMove?.carried?.(this);
+      this.swingCarried = carried;
+      const target = carried ? null : this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
       if (target) {
         const dir = target.position.clone().sub(this.position).setY(0).normalize();
         this.velocity.x = dir.x * (bare ? 10 : 13);
@@ -3461,7 +3541,7 @@ export class Player {
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
       // (A swing plants the feet now — MELEE_MOVE_SPEED — so a fighter who was
       // running a moment ago steps into it too, rather than sliding under it.)
-      if (variant?.lowerAlways || (!target && this.grounded)) {
+      if (!carried && (variant?.lowerAlways || (!target && this.grounded))) {
         this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08, false, 1 / pace);
       }
       this.flourished = false;
@@ -3650,14 +3730,20 @@ export class Player {
     const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
     this.meleeBare = bare;
     this.meleeRange = bare ? 1.8 : 3;
-    const target = this.nearestEnemy(game, 14, 0.2);
+    // On the slide the strike is thrown from the ride: no leap (the section
+    // owns the velocity), the same finisher on whatever the blade meets.
+    const carried = !!this.sectionMove?.carried?.(this);
+    this.swingCarried = carried;
+    const target = carried ? null : this.nearestEnemy(game, 14, 0.2);
     const dir = target
       ? target.position.clone().sub(this.position).setY(0).normalize()
       : new THREE.Vector3(Math.sin(this.cam.yaw), 0, Math.cos(this.cam.yaw));
-    this.velocity.x = dir.x * 16;
-    this.velocity.z = dir.z * 16;
-    this.velocity.y = Math.max(this.velocity.y, 6.5);
-    this.facingYaw = Math.atan2(dir.x, dir.z);
+    if (!carried) {
+      this.velocity.x = dir.x * 16;
+      this.velocity.z = dir.z * 16;
+      this.velocity.y = Math.max(this.velocity.y, 6.5);
+      this.facingYaw = Math.atan2(dir.x, dir.z);
+    }
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
     const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
@@ -3669,7 +3755,7 @@ export class Player {
     this.swingKick = !!kick;
     const dur = this.char.attack?.()
       ?? this.char.animator?.playOnce('upper', kick?.upper ?? `${set}3`, 0.05, false, 1 / pace) ?? 0.6;
-    if (kick) this.char.animator?.playOnce('lower', kick.lower, 0.05, false, 1 / pace);
+    if (kick && !carried) this.char.animator?.playOnce('lower', kick.lower, 0.05, false, 1 / pace);
     this.meleeTimer = dur + 0.1;
     this.meleeComboWindow = dur + 0.55;
     this.meleeHitPending = dur * (kick ? 0.45 : 0.6);
@@ -3938,7 +4024,26 @@ export class Player {
       target = lean * share + pitchDeg * (Math.PI / 180);
     } else target = lean * 0.4;
     this.leanX = damp(this.leanX, target, this.flying ? 6 : 8, dt);
-    this.char.root.rotation.x = this.leanX + this.flipAngle;
+    // On the slide the body tips onto the ice: pitched down the slope it is
+    // facing along and rolled onto a bank, so the boots lie along the surface
+    // and the recline in `slideLower` reads against the ice, not the sky.
+    const surf = this.alive && this.grounded && !this.vehicle && !!this.sectionMove?.crouch?.(this);
+    let tiltX = 0, tiltZ = 0;
+    if (surf) {
+      const n = game.board.physics.groundNormal(this.position.x, this.position.z);
+      const fx = Math.sin(this.facingYaw), fz = Math.cos(this.facingYaw);
+      // +X tips the body forward (toward its facing); +Z rolls it to its own
+      // right, which is (-fz, fx) on the ground
+      tiltX = clamp(Math.atan2(n.x * fx + n.z * fz, n.y) * SLIDE_POSE.pitchShare, -SLIDE_POSE.maxTilt, SLIDE_POSE.maxTilt);
+      tiltZ = clamp(Math.atan2(-n.x * fz + n.z * fx, n.y) * SLIDE_POSE.rollShare, -SLIDE_POSE.maxTilt, SLIDE_POSE.maxTilt);
+    }
+    this.slideTiltX = damp(this.slideTiltX, tiltX, SLIDE_POSE.tiltRate, dt);
+    this.slideTiltZ = damp(this.slideTiltZ, tiltZ, SLIDE_POSE.tiltRate, dt);
+    this.slideBlend = damp(this.slideBlend, surf ? 1 : 0, SLIDE_POSE.blendRate, dt);
+    if (this.slideBlend < 1e-3) this.slideBlend = 0;
+    this.char.animator?.setAdditive('neck', this.slideBlend * SLIDE_POSE.neckForward, 0, 0);
+    this.char.root.rotation.x = this.leanX + this.flipAngle + this.slideTiltX;
+    this.char.root.rotation.z = this.slideTiltZ;
     if (this.flipAngle !== 0) {
       // A somersault turns about the body's mass, and `position` is where the
       // boots are — spun about that the fighter scythes round their own feet
@@ -3979,5 +4084,36 @@ export class Player {
       fight: this.meleeKind === 'fists' && (this.meleeTimer > 0 || this.meleeComboWindow > 0),
     });
     this.char.cosmetic?.(dt, game.time);
+    // ...and with the pose on (the retarget has just run in `cosmetic`), the
+    // lowest boot is set on the ice under it
+    if (surf) {
+      const clear = this.soleClearance(game);
+      if (clear !== null) this.slideGround = clamp(-clear, -SLIDE_POSE.maxGround, SLIDE_POSE.maxGround);
+    } else {
+      this.slideGround = Math.abs(this.slideGround) < 1e-3 ? 0 : damp(this.slideGround, 0, 12, dt);
+    }
+    this.char.root.position.y += this.slideGround;
+  }
+
+  /**
+   * How far the lowest sole the player can see stands above the ground under
+   * it, metres (negative: in it), with the body where it is posed now. Each
+   * sole is its ankle less the ankle's own height over it, along the body's
+   * up. The ground is the ice heightfield where the body is on it, otherwise
+   * the level it is standing on. Null when there are no feet to measure.
+   */
+  soleClearance(game: Game): number | null {
+    const feet = this.char.feet?.();
+    if (!feet || feet.length === 0) return null;
+    const phys = game.board.physics;
+    const onIce = !!phys.heightAt && Math.abs(this.position.y - phys.heightAt(this.position.x, this.position.z)) < 0.25;
+    _soleUp.set(0, 1, 0).applyQuaternion(this.char.root.quaternion);
+    let low = Infinity;
+    for (const f of feet) {
+      f.bone.getWorldPosition(_sole).addScaledVector(_soleUp, -f.ankle);
+      const ground = onIce ? phys.heightAt!(_sole.x, _sole.z) : this.position.y;
+      low = Math.min(low, _sole.y - ground);
+    }
+    return low;
   }
 }

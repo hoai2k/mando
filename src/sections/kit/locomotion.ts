@@ -5,7 +5,7 @@ import type { Game } from '../../game/game';
 import type { SectionMove } from '../api';
 import { audio } from '../../core/audio';
 import { dampAngle } from '../../core/math';
-import type { Enemy } from '../../enemies/enemy';
+import type { Combatant, Enemy } from '../../enemies/enemy';
 import { GRAVITY } from '../../core/body';
 
 /**
@@ -61,10 +61,42 @@ export const SLIDE = {
   drag: 0.0064,
   /** the hardest the body is ever allowed to go */
   maxSpeed: 28,
-  /** the stick's lateral force, m/s² — carves the heading rather than adding speed */
-  steer: 11,
+  /**
+   * The stick is a lateral force across the channel, m/s², not a heading
+   * change: it builds sideways momentum, and the ice keeps it (`lateralGrip`),
+   * so a turn drifts on after the stick lets go. This is the even-handed
+   * figure; `steerOut` / `steerIn` shape it by which way the body is already
+   * going.
+   */
+  steer: 15,
   /** the same, in the air: a lean, not a turn */
   airSteer: 3.5,
+  /**
+   * Edging out — pushing the way the body is already sliding across the ice,
+   * or downhill on a bank — goes with the momentum and bites harder...
+   */
+  steerOut: 1.3,
+  /** ...and digging back in against it bites less: the edges skate before they hold */
+  steerIn: 0.55,
+  /**
+   * Lateral momentum, m/s, at which that asymmetry is all the way in. With
+   * none at all the stick gets the mean of the two, either way.
+   */
+  steerMomentum: 2,
+  /**
+   * How much the cross-slope pull counts toward that momentum, in seconds of
+   * it: on a sideways tilt, downhill is the outward edge before the body has
+   * started to drift that way.
+   */
+  steerTilt: 0.3,
+  /** the stick can push sideways momentum this far and no further, m/s (the edge lets go) */
+  maxLateral: 12,
+  /**
+   * The ice's grip on sideways momentum, per second. Low: what the stick
+   * builds is still mostly there a second later. (Banks and walls catch the
+   * rest, as before.)
+   */
+  lateralGrip: 0.35,
   /** pull back on the stick: the heels dig in, a drag that checks the speed but never stops it */
   dig: 0.4,
   /** push on the stick below this speed and the body shoves off (the flat, a stall) */
@@ -72,12 +104,17 @@ export const SLIDE = {
   pushAccel: 6,
   /** how hard a bank turns you back along the channel as you ride up it */
   bankTurn: 6,
-  /** the slide kick: reach, damage, shove, and how often */
-  kickReach: 3.2,
-  /** ...plus this much per m/s of speed: the faster you come, the earlier the boot is out */
-  kickReachPerSpeed: 0.12,
+  /**
+   * Melee on the slide is the fighter's own swing, on the arms, while the
+   * legs ride; the boots go out with it and tear a web in front of them, at
+   * most every `kickCd` seconds. A swing that connects while sliding bowls
+   * what it hits over: down for `kickDown` seconds, and at least `kickDamage`
+   * of hurt, more the faster you are coming (`kickDamagePerSpeed` per m/s
+   * over `crashAbove`).
+   */
   kickDamage: 22,
-  kickShove: 18,
+  kickDamagePerSpeed: 0.6,
+  kickDown: 1.1,
   kickCd: 0.55,
   /** sliding into a body: the speed you keep, what it costs you, and what it does to it */
   crashAbove: 8,
@@ -102,8 +139,8 @@ export interface SlideState {
 
 /**
  * The slide (the Glacier Chute): traction all but gone, gravity along the
- * slope, the stick as a lateral force, a dig-in drag, a crouched surf, a
- * slide kick on the melee button, and hip-fire only.
+ * slope, the stick as a lateral force, a dig-in drag, a feet-first surf, the
+ * fighter's own melee swung from it, and hip-fire only.
  */
 export class SlideMove {
   readonly state: SlideState[] = [0, 1, 2, 3].map(() => ({ sliding: false, speed: 0, digging: false, kickCd: 0, kicked: 99, crashed: 99 }));
@@ -121,6 +158,8 @@ export class SlideMove {
       adjust: (p, dt, input, game) => this.adjust(p, dt, input, game),
       steer: (p, dt, input, game) => this.steer(p, dt, input, game),
       crouch: (p) => this.on(p) && this.state[p.slot].speed > 2.5,
+      carried: (p) => this.state[p.slot].sliding,
+      meleeHit: (p, target, amount) => this.meleeHit(p, target, amount),
     };
   }
 
@@ -132,13 +171,13 @@ export class SlideMove {
     st.sliding = this.on(p);
     if (!st.sliding) return input;
     // what the buttons mean on the ice: no sprint and no dodge (there is no
-    // footing to push off), hip-fire only (the sights want a stance), and the
-    // melee button is the slide kick
+    // footing to push off), and hip-fire only (the sights want a stance).
+    // Melee goes through: the fighter swings their own weapon (or fists) from
+    // the slide — the player plays it on the arms and lands it as normal, and
+    // `carried` keeps the lunge and the planted feet out of it. The boots
+    // going out with it are what tear a web.
     const out = { ...input, sprintHeld: false, dashPressed: false, aimHeld: false };
-    if (input.meleePressed) {
-      out.meleePressed = false;
-      if (st.kickCd <= 0) this.kick(p, game);
-    }
+    if (input.meleePressed && st.kickCd <= 0) this.kick(p, game);
     // the look-ahead: while the look stick is idle the camera swings round to
     // the fall line, so the way down is what fills the screen
     const vx = p.velocity.x, vz = p.velocity.z;
@@ -165,8 +204,10 @@ export class SlideMove {
     // ---- gravity down the fall line (only on the ice itself) ----
     // The heightfield is the ice; a box under the feet (a slab, a ledge) is
     // flat ground and pulls nowhere.
-    if (p.grounded && phys.heightAt && Math.abs(p.position.y - phys.heightAt(p.position.x, p.position.z)) < 0.25) {
-      const n = this.n.copy(phys.groundNormal(p.position.x, p.position.z));
+    const onIce = p.grounded && !!phys.heightAt && Math.abs(p.position.y - phys.heightAt(p.position.x, p.position.z)) < 0.25;
+    const n = this.n.set(0, 1, 0);
+    if (onIce) {
+      n.copy(phys.groundNormal(p.position.x, p.position.z));
       v.x += SLIDE.pull * n.y * n.x * dt;
       v.z += SLIDE.pull * n.y * n.z * dt;
     }
@@ -174,17 +215,41 @@ export class SlideMove {
     // ---- the stick: carve, shove off, dig in ----
     const { fwdX, fwdZ, rightX, rightZ } = basis(p.cam.yaw);
     speed = Math.hypot(v.x, v.z);
+    // The frame the carve works in: along the channel and across it (the
+    // lane's axis; off the lane, the way the body is going). Right of an axis
+    // is (-az, ax) in this game's yaw convention (see `yawBasis`).
+    const lane = this.opts.lane?.(p.position.x, p.position.z);
+    const ax = lane ? lane.ax : speed > 1.5 ? v.x / speed : fwdX;
+    const az = lane ? lane.az : speed > 1.5 ? v.z / speed : fwdZ;
+    const rx = -az, rz = ax;
     const lateral = input.moveX;
     if (speed > 1.5 && Math.abs(lateral) > 0.05) {
-      // turn the heading toward the stick's side at a lateral acceleration
-      // of `steer`: the speed is kept, only its direction changes
-      const hx = v.x / speed, hz = v.z / speed;
-      // right of travel is (-hz, hx) (see `yawBasis`); the stick's right is
-      // the camera's, so a camera looking back up the hill still steers true
-      const camRight = -hz * rightX + hx * rightZ >= 0 ? 1 : -1;
-      const accel = (p.grounded ? SLIDE.steer : SLIDE.airSteer) * lateral * camRight;
-      const turn = (accel / Math.max(speed, 4)) * dt;
-      rotate(v, -turn);
+      // A force across the channel, not a turn: it adds sideways momentum and
+      // the heading follows from the velocity. The stick's right is the
+      // camera's, so a camera looking back up the hill still steers true.
+      const push = lateral * (rx * rightX + rz * rightZ >= 0 ? 1 : -1);
+      // The momentum the push meets: what the body already has across the
+      // channel, plus the bank's pull downhill. Pushing with it is edging out
+      // (`steerOut`), against it digging back in (`steerIn`); in between the
+      // two shade into each other.
+      const across = v.x * rx + v.z * rz;
+      const tilt = SLIDE.pull * n.y * (n.x * rx + n.z * rz);
+      const momentum = across + tilt * SLIDE.steerTilt;
+      const withIt = Math.max(0, Math.min(1, 0.5 + Math.sign(push) * momentum / (2 * SLIDE.steerMomentum)));
+      const gain = SLIDE.steerIn + (SLIDE.steerOut - SLIDE.steerIn) * withIt;
+      let dw = (p.grounded ? SLIDE.steer : SLIDE.airSteer) * gain * push * dt;
+      // the edge holds only so much: past `maxLateral` the push slips
+      const room = Math.max(0, SLIDE.maxLateral - Math.sign(push) * across);
+      dw = Math.sign(dw) * Math.min(Math.abs(dw), room);
+      v.x += rx * dw;
+      v.z += rz * dw;
+    }
+    if (p.grounded) {
+      // what the ice keeps of the sideways momentum: most of it
+      const across = v.x * rx + v.z * rz;
+      const lose = across * (1 - Math.exp(-SLIDE.lateralGrip * dt));
+      v.x -= rx * lose;
+      v.z -= rz * lose;
     }
     if (input.moveY > 0.2 && speed < SLIDE.pushBelow && p.grounded) {
       const wish = Math.hypot(fwdX * input.moveY + rightX * input.moveX, fwdZ * input.moveY + rightZ * input.moveX) || 1;
@@ -204,7 +269,6 @@ export class SlideMove {
     v.z *= k;
 
     // ---- the banks, and the wall at the top of them ----
-    const lane = this.opts.lane?.(p.position.x, p.position.z);
     if (lane) this.bank(p, lane, dt);
 
     if (this.opts.crash !== false) this.crash(p, game);
@@ -285,6 +349,10 @@ export class SlideMove {
     }
   }
 
+  /**
+   * The boots going out with a swing: whatever web is in front of them tears
+   * (the section's `onKick`). The swing itself is the player's own.
+   */
   private kick(p: Player, game: Game): void {
     const st = this.state[p.slot];
     st.kickCd = SLIDE.kickCd;
@@ -292,25 +360,22 @@ export class SlideMove {
     const sp = Math.hypot(v.x, v.z);
     const hx = sp > 0.5 ? v.x / sp : Math.sin(p.cam.yaw), hz = sp > 0.5 ? v.z / sp : Math.cos(p.cam.yaw);
     const at = p.position.clone().add(new THREE.Vector3(hx * 1.4, 0.6, hz * 1.4));
-    let hit = false;
-    for (const e of game.enemies) {
-      if (!e.alive || e.team === p.team) continue;
-      const dx = e.position.x - p.position.x, dz = e.position.z - p.position.z;
-      const d = Math.hypot(dx, dz);
-      if (d > SLIDE.kickReach + SLIDE.kickReachPerSpeed * sp + e.radius || Math.abs(e.position.y - p.position.y) > 2.2) continue;
-      if (d > 1.6 && (dx * hx + dz * hz) / d < -0.1) continue;   // behind you
-      e.damage(SLIDE.kickDamage, p.position, p.slot);
-      // out of the lane: shoved along your heading and off to whichever side it is on
-      const side = (dx * -hz + dz * hx) >= 0 ? 1 : -1;
-      const from = e.position.clone().add(new THREE.Vector3(-hx * 2 + hz * side * 2, 0, -hz * 2 - hx * side * 2));
-      e.knockback(from, SLIDE.kickShove, 0.6, 0.45);
-      e.knockdown(1.1);
-      hit = true;
-    }
     this.opts.onKick?.(p, at, game);
-    game.particles.dustPuff(at, hit ? 14 : 6);
-    audio.melee(0);
-    if (hit) { st.kicked = 0; audio.meleeHit(); p.cam.shake(0.08); }
+    game.particles.dustPuff(at, 6);
+  }
+
+  /**
+   * A swing thrown from the slide has the slide behind it: what it lands on
+   * goes over, and it hurts more the faster you are coming. This is what
+   * clears the lane ahead (the crash is what happens when you do not).
+   */
+  private meleeHit(p: Player, target: Combatant, amount: number): number {
+    const st = this.state[p.slot];
+    if (!st.sliding) return amount;
+    st.kicked = 0;
+    (target as Partial<Enemy>).knockdown?.(SLIDE.kickDown);
+    const over = Math.max(0, st.speed - SLIDE.crashAbove);
+    return Math.max(amount, SLIDE.kickDamage + over * SLIDE.kickDamagePerSpeed);
   }
 }
 
@@ -327,14 +392,6 @@ function basis(yaw: number): { fwdX: number; fwdZ: number; rightX: number; right
   return { fwdX: s, fwdZ: c, rightX: -c, rightZ: s };
 }
 
-/** turn a velocity's horizontal part by `a` radians (positive = toward +x from +z) */
-function rotate(v: THREE.Vector3, a: number): void {
-  const c = Math.cos(a), s = Math.sin(a);
-  const x = v.x * c + v.z * s;
-  const z = -v.x * s + v.z * c;
-  v.x = x;
-  v.z = z;
-}
 
 /**
  * K7 — locomotion modes (docs/SECTIONS_IMPLEMENTATION.md §3): the ways a
