@@ -26,6 +26,10 @@ import type { Combatant } from '../enemies/enemy';
  *   - Everything else meets and parries: saber on saber, saber on beskar,
  *     steel on steel.
  *   - Fists, claws and jaws cannot parry and cannot be parried.
+ *   - A fully charged strike (src/game/chargeAttack.ts) breaks a parry it
+ *     would otherwise meet: the defender's strike is beaten aside and the
+ *     charged blow lands. It cannot beat physics — a steel weapon driven into
+ *     a cutting blade is still sheared off, however hard it was swung.
  */
 export type Blade = 'energy' | 'beskar' | 'steel';
 
@@ -74,13 +78,15 @@ export type ClashResult =
   | { kind: 'hit' }                                  // no blade met it: the strike lands
   | { kind: 'parry'; sound: 'saber' | 'steel' }      // both strikes cancelled
   | { kind: 'cut' }                                  // the attacker cut through the defender's guard
+  | { kind: 'break'; sound: 'saber' | 'steel' }      // a full charge beat the defender's parry aside
   | { kind: 'sheared' };                             // the defender's blade cut the attacker's strike off
 
 /**
  * What happens when `attacker`'s strike, made with `blade`, arrives on
  * `defender`. Pure: the caller applies the outcome.
  */
-export function resolveClash(attacker: Combatant, blade: Blade | null, defender: Combatant): ClashResult {
+export function resolveClash(attacker: Combatant, blade: Blade | null, defender: Combatant,
+  opts: { breaksGuard?: boolean } = {}): ClashResult {
   if (!blade || !isDuelist(defender)) return { kind: 'hit' };
   const guard = defender.meleeGuard();
   if (!guard) return { kind: 'hit' };
@@ -92,6 +98,7 @@ export function resolveClash(attacker: Combatant, blade: Blade | null, defender:
   if (facing < GUARD_FACING) return { kind: 'hit' };
   if (cutsThrough(blade, guard.blade)) return { kind: 'cut' };
   if (cutsThrough(guard.blade, blade)) return { kind: 'sheared' };
+  if (opts.breaksGuard) return { kind: 'break', sound: clashSound(blade, guard.blade) };
   return { kind: 'parry', sound: clashSound(blade, guard.blade) };
 }
 

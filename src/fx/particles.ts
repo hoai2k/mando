@@ -377,6 +377,7 @@ const _up = new THREE.Vector3();
 const _rx = new THREE.Vector3();
 const _rz = new THREE.Vector3();
 const _carrier = new THREE.Vector3();
+const _chargeVel = new THREE.Vector3();
 
 export class ParticleFX {
   group = new THREE.Group();
@@ -479,6 +480,19 @@ export class ParticleFX {
    */
   disintegrate(p: THREE.Vector3, n = 4): void {
     this.ash.spawn(p, new THREE.Vector3(0, 0.9, 0), 1.3, 0.9, n);
+  }
+
+  /**
+   * A melee strike gathering power (src/game/chargeAttack.ts): amber motes
+   * lifting off the weapon hand, quicker and wider as the charge builds.
+   */
+  chargeMote(p: THREE.Vector3, level: number): void {
+    this.ash.spawn(p, _chargeVel.set(0, 0.5 + level * 1.1, 0), 0.4 + level * 0.8, 0.3 + level * 0.15, 1);
+  }
+  /** the charge is full: a bright pop at the hand */
+  chargeFlash(p: THREE.Vector3): void {
+    this.flash.spawn(p, _chargeVel.set(0, 0.3, 0), 1, 0.12, 3);
+    this.sparks.spawn(p, _chargeVel.set(0, 1.5, 0), 3.5, 0.25, 12);
   }
 
   dustPuff(p: THREE.Vector3, n = 8): void { this.dust.spawn(p, new THREE.Vector3(0, 1.2, 0), 2.4, 0.9, n); }

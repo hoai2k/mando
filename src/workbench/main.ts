@@ -262,6 +262,7 @@ function activeClips(): { lower: string | null; upper: string | null } {
       saber1: `${attack}1`, saber2: `${attack}2`, saber3: `${attack}3`,
       saberIdleUpper: `${stance}IdleUpper`, saberRunUpper: `${stance}RunUpper`,
       saberFlourish: `${stance}Flourish`,
+      saberReadyUpper: `${attack}ReadyUpper`,
     };
     upper = upper ? (weaponClips[upper] ?? upper) : null;
   }
@@ -513,7 +514,8 @@ function applyPose(): void {
     anim.poseAt(0);
     f.extras.setThrust?.(pose.thrust ?? 0);
     if (pose.melee && f.extras.setMeleeKind) {
-      f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
+      f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id.startsWith('chargeSaber') || pose.id === 'flourish'
+        ? 'sabers' : 'gaffi');
     }
     const armorerIdle = cid() === 'armorer' && pose.id === 'idle';
     f.extras.setWeapon?.(emptyHanded(pose) ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');

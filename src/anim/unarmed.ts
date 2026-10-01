@@ -298,5 +298,27 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
         [[-0.85, 0.25, 0.32], [0.34, 0.1, 0.94]], [[-0.3, -0.5, 0.1]], [[-0.05, -0.75, -0.15]], [[0, -0.85, -0.25]], SET),
     }, hipsAt(p, [0.04, 0], [0.18, 0], [0.06, 0.02], [-0.22, 0.05], [-0.28, 0.08], [-0.15, 0.08], [0.16, 0.06], [0.08, 0.02], [0.04, 0]));
   }
+
+  // ------------------------------------------------- charged strike: ready
+  // Holding the button winds up the cross and keeps it there
+  // (src/game/chargeAttack.ts): the rear fist drawn right back by the ear,
+  // elbow up and behind, and the lead hand out measuring the distance.
+  // Upper body only, a loop with a slow breath in it; the legs keep their
+  // gait. The cross turns its hips for the wind-up; here the legs are running,
+  // so the chest carries that turn itself and the head comes back round onto
+  // the target.
+  {
+    const COCKED: Reach = [[-0.2, 0.2, -0.08], [-1, -0.2, -0.8]];
+    const DEEPER: Reach = [[-0.21, 0.21, -0.11], [-1, -0.2, -0.8]];
+    const MEASURE: Reach = [[0.2, 0.12, 0.44]], MEASURE_IN: Reach = [[0.2, 0.13, 0.42]];
+    out.fistReadyUpper = build('fistReadyUpper', {
+      dur: 1.4, at: [0, 0.5, 1], bones: {
+        chest: [[2, -28, 0], [1, -31, 0], [2, -28, 0]],
+        head: [[-4, 24, 0], [-4, 27, 0], [-4, 24, 0]],
+        ...arm('R', COCKED, DEEPER, COCKED),
+        ...arm('L', MEASURE, MEASURE_IN, MEASURE),
+      },
+    });
+  }
   return out;
 }

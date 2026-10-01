@@ -78,6 +78,11 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'catchL', name: 'Saber catch — left hand', lower: 'idleLower', upper: 'saberCatchL', melee: true },
   { rig: 'humanoid', id: 'melee2', name: 'Melee 2 — backswing', lower: 'meleeLower2', upper: 'melee2', melee: true },
   { rig: 'humanoid', id: 'melee3', name: 'Melee 3 — overhead', lower: 'meleeLower3', upper: 'melee3', melee: true },
+  // the charged strike's held wind-up (src/game/chargeAttack.ts); a saber
+  // fighter's blade plays its own (the Darksaber, the tonfas, the double saber)
+  { rig: 'humanoid', id: 'chargeStaff', name: 'Charge ready — staff / spear', lower: 'idleLower', upper: 'meleeReadyUpper', melee: true },
+  { rig: 'humanoid', id: 'chargeSaber', name: 'Charge ready — sabers', lower: 'idleLower', upper: 'saberReadyUpper', melee: true },
+  { rig: 'humanoid', id: 'chargeSaberRun', name: 'Charge ready — sabers, running', lower: 'runLower', upper: 'saberReadyUpper', melee: true },
   { rig: 'humanoid', id: 'hit', name: 'Hit reaction', lower: 'idleLower', upper: 'hitUpper' },
   { rig: 'humanoid', id: 'hitL', name: 'Hit — from left flank', lower: 'idleLower', upper: 'hitFromL' },
   { rig: 'humanoid', id: 'hitR', name: 'Hit — from right flank', lower: 'idleLower', upper: 'hitFromR' },
@@ -87,6 +92,7 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'unarmed1', name: 'Unarmed 1 — wound-up cross', lower: 'fistCrossLower', upper: 'fistCrossUpper', previewOnly: true, unarmed: true },
   { rig: 'humanoid', id: 'unarmed2', name: 'Unarmed 2 — lead hook', lower: 'fistHookLower', upper: 'fistHookUpper', previewOnly: true, unarmed: true },
   { rig: 'humanoid', id: 'unarmed3', name: 'Unarmed 3 — roundhouse kick', lower: 'kickRoundhouseLower', upper: 'kickRoundhouseUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'chargeFists', name: 'Charge ready — fists', lower: 'idleLower', upper: 'fistReadyUpper', previewOnly: true, unarmed: true },
   { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null, previewOnly: true },
 ];
 
