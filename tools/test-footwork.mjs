@@ -11,11 +11,11 @@
  *    the back foot sliding backward under a body that has not moved yet.
  *  - Enemies on foot move at 80% of their listed speed too; riders and fliers
  *    are left as they were.
- *  - Firing slows the feet to a walk — even with LB held, which would
- *    otherwise sprint — and they run again once the trigger is let go.
- *  - A swing plants the feet. The lunge carries a swing onto a target; with
- *    nothing to lunge at, a running fighter stops to throw it rather than
- *    sliding along under the punch.
+ *  - Firing eases a runner to the attack pace (~70% of the run) — even with
+ *    LB held, which would otherwise sprint — and they run full again once
+ *    the trigger is let go.
+ *  - A swing on the move does the same: the fighter keeps running, a little
+ *    slower, rather than stopping to throw it (tools/test-attack-move.mjs).
  *  - None of that applies in the saddle: a rider fires at full speed.
  *
  *   node tools/test-footwork.mjs
@@ -152,10 +152,12 @@ try {
   // ---- the gun ----
   await home();
   const firing = await run({ frames: 45, stick: 1, hold: ['shootHeld'], from: 20 });
-  check('firing slows a runner to a walk', firing.peak <= 1.85 && firing.weapon === 'blaster', firing);
-  check('...on the walk cycle', firing.legs === 'walkLower', firing);
+  // the attack pace: 70% of the run (9.2 * 0.8 * 0.7 = 5.15 m/s)
+  check('firing eases a runner to the attack pace, still running',
+    firing.peak > 4.5 && firing.peak <= 5.4 && firing.weapon === 'blaster', firing);
+  check('...on the run/walk cycle', /^(run|walk)Lower$/.test(firing.legs), firing);
   const sprintFire = await run({ frames: 45, stick: 1, press: ['dashPressed'], hold: ['sprintHeld', 'shootHeld'], from: 25 });
-  check('LB held does not sprint through the fire', !sprintFire.sprinting && sprintFire.peak <= 1.85, sprintFire);
+  check('LB held does not sprint through the fire', !sprintFire.sprinting && sprintFire.peak <= 5.4, sprintFire);
   const released = await run({ frames: 30, stick: 1 });
   check('let go of the trigger and the feet run again', released.speed > 7, released);
 
@@ -163,8 +165,8 @@ try {
   await home();
   await run({ frames: 45, stick: 1 });
   const swing = await run({ frames: 8, stick: 1, press: ['meleePressed'], from: 4 });
-  check('a swing with nothing to lunge at plants the feet',
-    swing.swinging && swing.peak <= 1, swing);
+  check('a swing with nothing to lunge at keeps running, a little slower',
+    swing.swinging && swing.speed > 4.5 && swing.speed <= 5.4, swing);
   const after = await run({ frames: 45, stick: 1 });
   check('...and runs on once it is thrown', after.speed > 7, after);
 

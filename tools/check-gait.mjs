@@ -221,12 +221,11 @@ for (const k of Object.keys(stance)) {
   const r = stance[k];
   console.log(`  ${r.label}: ${r.offCamera}° off the camera, ${r.offTravel}° off travel, legs on ${r.clip}`);
 }
-// Since 2026-09-29 a swing also plants the feet (playtest: "a bit funny to see
-// a character sliding and punching") — so a chain of swings is thrown from a
-// shuffle, not a run. What still has to hold is the note above: the body turns
-// with the stick, and the legs step into each swing instead of strafing. At a
-// shuffle's speed the direction of travel is a few degrees noisier than at a
-// run, hence the looser bound.
+// Since 2026-10-01 a swing on the move keeps running, a little slower
+// (ATTACK_MOVE_FACTOR; playtest: "characters should be able to fight while
+// running"), with the legs on the run cycle under the strike. What still has
+// to hold is the note above: the body turns with the stick, and the legs run
+// with it instead of strafing.
 check('a swing turns with the stick instead of holding square to the camera',
   stance.swingLeft.offTravel <= 10 && stance.swingBack.offTravel <= 10
     && stance.swingLeft.offCamera >= 60 && stance.swingBack.offCamera >= 60,
@@ -234,10 +233,9 @@ check('a swing turns with the stick instead of holding square to the camera',
 // (the first frames of running backward strafe while the body comes round
 // from facing the camera, which is the turn, not the fight — so the legs are
 // judged where they end up, and on whether the swings' own steps played)
-check('...so a fight on the move steps into its swings rather than strafing',
+check('...so a fight on the move runs under its swings rather than strafing',
   [stance.swingLeft, stance.swingBack].every((r) => !/strafe|back/i.test(r.clip)
-    // a swing's own legs: anything that is not a locomotion cycle
-    && r.clips.split(',').some((c) => !/^(run|walk|sprint|strafe|back|idle|air|fly)/i.test(c))),
+    && /^(run|walk)Lower$/.test(r.clip)),
   JSON.stringify([stance.swingLeft, stance.swingBack].map((r) => [r.clip, r.clips])));
 check('aiming is still the stance that holds the body square',
   stance.aimLeft.offCamera <= 5 && stance.aimLeft.clips.includes('strafe'),
