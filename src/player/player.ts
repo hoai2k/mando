@@ -32,9 +32,13 @@ import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
 import { strikePace } from '../characters/combatStyle';
 import { FistDriver } from '../characters/fists';
 import {
-  fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
+  fistSegments, forwardReach, isDuelist, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
 } from '../game/melee';
+import {
+  CHARGE_INTERRUPT_DAMAGE, CHARGE_MOVES, CHARGE_THRESHOLD, breaksGuard, chargeDamageScale, chargeHoldPace,
+  chargeLevel, CHARGE_FULL, type ChargeFamily,
+} from '../game/chargeAttack';
 
 /** fighters whose strike is a fist, a claw or a jaw: no blade to parry with */
 const UNARMED_MELEE: ReadonlySet<PlayableId> = new Set<PlayableId>([
@@ -117,6 +121,7 @@ const _flipAxis = new THREE.Vector3();
 const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
+const _chargeHand = new THREE.Vector3();
 /** the ride's grip and the elbow hint that picks the arm's bend */
 /** how long a kill zone takes to close over a body, in seconds */
 const TAKEN_TIME = 1.15;
@@ -279,6 +284,12 @@ const RUN_PACE = 0.8;
  * themselves and are not trimmed by this.
  */
 const ATTACK_MOVE_FACTOR = 0.7;
+/**
+ * While a charged strike winds up (src/game/chargeAttack.ts) the melee timer
+ * is held at least this high, which is what keeps the ready pose on the arms
+ * against the locomotion poses and the feet at the attack pace.
+ */
+const CHARGE_ARMS_HOLD = 0.12;
 /** how long after a shot the slowed pace holds, so a tapped trigger still eases the feet (s) */
 const SHOOT_SLOW_HOLD = 0.3;
 /** above this ground speed (m/s) a swing's own leg one-shot gives the legs back to the gait */
@@ -855,6 +866,27 @@ export class Player {
   private lungeSpeed = 0;
   /** seconds a swing press is remembered while the current swing plays out */
   private meleeBuffer = 0;
+  /**
+   * The charged strike (src/game/chargeAttack.ts). `meleeHold` counts the
+   * seconds a press has been held while it could still be a tap (-1: no press
+   * pending); `chargeT` the seconds in the ready pose (-1: not charging);
+   * `chargedStrike` the charge level of the strike in flight (-1: an ordinary
+   * swing).
+   */
+  private meleeHold = -1;
+  /** a combo was live when the pending press began, so a tap continues it */
+  private holdCombo = false;
+  private chargeT = -1;
+  private chargeFamily: ChargeFamily = 'melee';
+  private chargedStrike = -1;
+  /** seconds left of the charged release's forward carry */
+  private chargeLunge = 0;
+  /** the full-charge flash has fired for this hold */
+  private chargeFullCued = false;
+  /** sub-frame accumulator for the gathering motes */
+  private chargeMotes = 0;
+  /** the tremble is on the arms: clear it once when the charge ends */
+  private chargeTremble = false;
   private meleeDamage = 0;
   /** seconds of animation freeze left after a landed melee hit */
   private hitStop = 0;
@@ -1405,6 +1437,8 @@ export class Player {
       this.cam.shake(0.1 + heft * 0.12);
       // the body says it too: a short flinch on the upper channel, unless a
       // swing or the shield is already using the arms
+      // a solid hit breaks a charged strike's wind-up (src/game/chargeAttack.ts)
+      if (this.chargeT >= 0 && amount >= CHARGE_INTERRUPT_DAMAGE) this.cancelCharge();
       if (this.meleeTimer <= 0 && this.blockRaise < 0.3 && this.hp - amount > 0) {
         this.char.animator?.playOnce('upper', 'hitUpper', 0.05);
       }
@@ -2092,6 +2126,8 @@ export class Player {
     if (this.landRecovery > 0) topSpeed *= 1 - 0.85 * (this.landRecovery / LAND_RECOVER);
     if (this.grounded) {
       if (firing || swinging) topSpeed = Math.min(topSpeed, run * ATTACK_MOVE_FACTOR);
+      // a full charge held on and on gives a little of that pace back
+      if (this.chargeT >= 0) topSpeed *= chargeHoldPace(this.chargeT - CHARGE_FULL);
     }
     // on the ground the stick sets the pace (stickPace) and everything above
     // trims it; in the air, and in a sprint, it steers in proportion
@@ -2954,6 +2990,7 @@ export class Player {
    */
   parried(from: THREE.Vector3, react: boolean): void {
     this.swingDone = true;
+    this.chargeLunge = 0;
     this.meleeHitPending = 0;
     this.meleeBuffer = 0;
     const anim = this.char.animator;
@@ -2974,13 +3011,17 @@ export class Player {
   /** one frame of the lunge: on at the target until the blade is in reach of it */
   private carryLunge(dt: number): void {
     const t = this.lungeTarget!;
-    if (!t.alive || this.meleeTimer <= 0 || this.swingDone || this.swingT >= this.swingHitAt) {
+    // a charged release starts just short of its contact key, so its carry
+    // runs on its own clock (`chargeLunge`) rather than stopping at the key
+    const keyed = this.chargedStrike >= 0 ? this.chargeLunge <= 0 : this.swingT >= this.swingHitAt;
+    if (!t.alive || this.meleeTimer <= 0 || this.swingDone || keyed) {
       this.lungeTarget = null;
       return;
     }
     const dx = t.position.x - this.position.x, dz = t.position.z - this.position.z;
     const d = Math.hypot(dx, dz);
-    const stop = t.radius + (this.meleeBare ? LUNGE_STANDOFF_BARE : LUNGE_STANDOFF);
+    const standoff = this.chargedStrike >= 0 ? CHARGE_MOVES[this.chargeFamily].standoff : undefined;
+    const stop = t.radius + (standoff ?? (this.meleeBare ? LUNGE_STANDOFF_BARE : LUNGE_STANDOFF));
     if (d <= stop) { this.lungeTarget = null; return; }
     const v = Math.min(this.lungeSpeed, (d - stop) / Math.max(dt, 1e-3));
     this.velocity.x = (dx / d) * v;
@@ -3067,10 +3108,18 @@ export class Player {
   /** the swing met `e`: a clash, a cut through a guard, or a plain hit */
   private strike(e: Combatant, at: THREE.Vector3, game: Game): void {
     this.swingStruck.add(e);
-    const clash = resolveClash(this, this.meleeBlade, e);
+    const clash = resolveClash(this, this.meleeBlade, e,
+      { breaksGuard: this.chargedStrike >= 0 && breaksGuard(this.chargedStrike) });
     if (clash.kind === 'parry') {
       game.meleeClash(this, this.swingStartedAt, e as Duelist, clash.sound, at);
       return;
+    }
+    if (clash.kind === 'break') {
+      // a full charge beats the parry aside: the blades still ring, the
+      // defender's strike is knocked away, and the blow carries on through
+      audio.clash(clash.sound);
+      game.particles.impactSparks(at, 22);
+      if (isDuelist(e)) e.parried(this.position, false);
     }
     if (clash.kind === 'sheared') {
       game.meleeShear(this, e, at);
@@ -3092,8 +3141,14 @@ export class Player {
     // the finisher is the haymaker: it puts the target flat on the
     // ground (follow up while they're down and hits land double)
     const en = e as Partial<Enemy> & typeof e;
+    const charged = this.chargedStrike;
     if (en.knockback && en.knockdown) {
-      if (this.meleeStep === 3) {
+      if (charged >= 0) {
+        // a charged blow throws harder and staggers longer the more it was
+        // held; past half a charge it puts them on the ground
+        en.knockback(this.position, 12 + 8 * charged, 0.4 + 0.5 * charged, 0.1);
+        if (charged >= 0.5) en.knockdown(1.2 + 0.8 * charged);
+      } else if (this.meleeStep === 3) {
         en.knockback(this.position, 12, 0.35, 0.08);
         en.knockdown(1.6 + Math.random() * 0.5);
       } else {
@@ -3101,7 +3156,7 @@ export class Player {
       }
     } else {
       // a rival player has no knockdown state: shove the body instead
-      const push = to.multiplyScalar(this.meleeStep === 3 ? 9 : 6);
+      const push = to.multiplyScalar(charged >= 0 ? 8 + 6 * charged : this.meleeStep === 3 ? 9 : 6);
       e.velocity.x += push.x;
       e.velocity.z += push.z;
       e.velocity.y += 2;
@@ -3115,12 +3170,13 @@ export class Player {
     if (this.swingLanded) return;
     this.swingLanded = true;
     audio.meleeHit(this.swingSound);
-    this.cam.shake(0.1);
+    this.cam.shake(this.chargedStrike >= 0 ? 0.12 + 0.14 * this.chargedStrike : 0.1);
     game.hitMarker(this.slot);
     // hit-stop: the attacker's animation hangs for a few frames on
     // contact (heavier on the finisher), which is most of what makes
     // a hit feel like it landed on something solid
-    this.hitStop = this.meleeStep === 3 ? 0.09 : 0.055;
+    this.hitStop = this.chargedStrike >= 0 ? 0.1 + 0.05 * this.chargedStrike
+      : this.meleeStep === 3 ? 0.09 : 0.055;
   }
 
   /**
@@ -3461,6 +3517,239 @@ export class Player {
     audio.uiMove();
   }
 
+  /** the ready pose and release the weapon in hand charges with */
+  private get chargeFamilyNow(): ChargeFamily {
+    const fists = this.meleeKind === 'fists';
+    if (fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0)) return 'fists';
+    return this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
+  }
+
+  /**
+   * Whether a melee press can wind up a charge: on foot, on the ground, with
+   * the arms free, and a body that has the ready and release clips for the
+   * weapon in hand. Anything else (a creature playable, a jump, a ride, the
+   * slide carrying the body) swings on the press, as it always has.
+   */
+  private canCharge(): boolean {
+    const anim = this.char.animator;
+    if (!anim || this.char.attack || !this.alive || !this.grounded || this.swimming || this.vehicle
+      || this.blocking || this.sectionMove?.carried?.(this)) return false;
+    const move = CHARGE_MOVES[this.chargeFamilyNow];
+    return !!anim.clips[move.ready] && !!anim.clips[move.upper];
+  }
+
+  /** the melee charge (0-1) while winding up, -1 otherwise — the HUD's meter */
+  get meleeCharge(): number {
+    return this.chargeT < 0 ? -1 : chargeLevel(this.chargeT);
+  }
+
+  /**
+   * The charged strike's input (src/game/chargeAttack.ts). Returns whether a
+   * melee press lands on this frame as an ordinary swing.
+   *
+   * A press from a source that reports the button held (`meleeHeld`) waits:
+   * let go inside CHARGE_THRESHOLD and it swings then as the combo's next hit
+   * — a tap, exactly as before — but hold on and the fighter settles into the
+   * ready pose, and the charge builds until the button is let go. A press
+   * with nothing held behind it (a bot, a scripted swing) swings at once.
+   */
+  private updateMeleeCharge(dt: number, input: FrameInput, game: Game): boolean {
+    const held = !!input.meleeHeld;
+    if (this.chargeT >= 0) {
+      // something else took the arms — a dodge cut it, a hit knocked it out,
+      // the shield came up — or the body left the fight on foot: it is lost
+      if (this.meleeTimer <= 0 || this.blocking || !this.alive || this.swimming || this.vehicle) {
+        this.cancelCharge();
+        return false;
+      }
+      if (!held) this.releaseCharge(input, game);
+      else this.tickCharge(dt, game);
+      return false;
+    }
+    if (this.meleeHold >= 0) {
+      if (this.blocking || !this.alive) { this.meleeHold = -1; return false; }
+      if (!held || !this.canCharge()) {
+        // let go before it matured: a tap, thrown now as the combo's next hit
+        this.meleeHold = -1;
+        if (this.holdCombo && this.meleeComboWindow <= 0) this.meleeComboWindow = 1e-3;
+        return true;
+      }
+      this.meleeHold += dt;
+      if (this.meleeHold >= CHARGE_THRESHOLD) this.beginCharge();
+      return false;
+    }
+    if (input.meleePressed && held && this.meleeTimer <= 0 && this.canCharge()) {
+      this.meleeHold = 0;
+      this.holdCombo = this.meleeComboWindow > 0;
+      return false;
+    }
+    return input.meleePressed;
+  }
+
+  /** the hold matured: draw the weapon and settle into the ready pose */
+  private beginCharge(): void {
+    this.meleeHold = -1;
+    const family = this.chargeFamily = this.chargeFamilyNow;
+    const bare = family === 'fists';
+    this.meleeBare = bare;
+    this.meleeRange = bare ? 1.8 : 3;
+    this.chargeT = 0;
+    this.chargeFullCued = false;
+    this.chargeMotes = 0;
+    // winding up draws, the same way a swing does
+    if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
+    this.weapon = 'gaffi';
+    this.saberIdle = 0;
+    this.char.setWeapon('gaffi');
+    this.meleeComboWindow = 0;
+    this.flourished = true;   // no combo flourish over the wind-up
+    this.lungeTarget = null;
+    // the timer holds the arms against the locomotion poses (and slows the
+    // feet to the attack pace, ATTACK_MOVE_FACTOR) for as long as the hold lasts
+    this.meleeTimer = CHARGE_ARMS_HOLD;
+    // the wind-up takes the arms straight from whatever one-shot had them (a
+    // flourish, a catch), cross-faded rather than waiting for it to finish
+    this.char.animator?.endOneShot('upper');
+    this.char.animator?.play('upper', CHARGE_MOVES[family].ready, 0.12);
+  }
+
+  /** one frame in the ready pose: the charge builds, and the body shows it */
+  private tickCharge(dt: number, game: Game): void {
+    this.chargeT += dt;
+    this.meleeTimer = Math.max(this.meleeTimer, CHARGE_ARMS_HOLD);
+    this.saberIdle = 0;
+    const anim = this.char.animator;
+    // asked every frame: a one-shot already on the arms (a catch, a flinch
+    // that did not break the hold) finishes first, then the ready takes over
+    anim?.play('upper', CHARGE_MOVES[this.chargeFamily].ready, 0.12);
+    const level = chargeLevel(this.chargeT);
+    // a tremble that grows with the charge, through both arms and the back
+    if (anim) {
+      const t = game.time, amp = 0.006 + 0.03 * level;
+      anim.setAdditive('forearmR', amp * Math.sin(t * 47), 0, amp * Math.sin(t * 61 + 1));
+      anim.setAdditive('forearmL', amp * Math.sin(t * 53 + 2), 0, amp * Math.sin(t * 43));
+      anim.setAdditive('spine', amp * 0.4 * Math.sin(t * 37), amp * 0.3 * Math.sin(t * 29 + 1), 0);
+      this.chargeTremble = true;
+    }
+    // energy gathering at the weapon hand, quicker as it builds, a pop when full
+    const hand = this.char.rig?.bones.weaponR;
+    if (hand) {
+      hand.getWorldPosition(_chargeHand);
+      this.chargeMotes += dt * (6 + 34 * level);
+      for (; this.chargeMotes >= 1; this.chargeMotes--) game.particles.chargeMote(_chargeHand, level);
+      if (level >= 1 && !this.chargeFullCued) {
+        this.chargeFullCued = true;
+        game.particles.chargeFlash(_chargeHand);
+        this.cam.shake(0.035);
+      }
+    }
+    // lit blades brighten with it, and pulse once it is full
+    if (this.meleeKind === 'sabers') {
+      this.setChargeGlow(level >= 1 ? 1.6 + 0.3 * Math.sin(game.time * 14) : 1.2 * level);
+    }
+  }
+
+  /** every blade the fighter holds, brightened (`saberLights.ts`) and thickened by `glow` */
+  private setChargeGlow(glow: number): void {
+    this.char.root.traverse((o) => {
+      for (const b of [o.userData.blade, o.userData.oppositeBlade] as Array<THREE.Object3D | undefined>) {
+        if (!b) continue;
+        b.userData.chargeGlow = glow;
+        b.scale.x = b.scale.z = 1 + 0.3 * Math.min(glow, 1.6);
+      }
+    });
+  }
+
+  /** put the body back to how it was before the wind-up */
+  private clearChargeFx(): void {
+    const anim = this.char.animator;
+    if (this.chargeTremble && anim) {
+      anim.setAdditive('forearmR', 0, 0, 0);
+      anim.setAdditive('forearmL', 0, 0, 0);
+      anim.setAdditive('spine', 0, 0, 0);
+    }
+    if (this.meleeKind === 'sabers') this.setChargeGlow(0);
+    this.chargeTremble = false;
+  }
+
+  /** the hold was broken (a hit, a dodge, the shield): no strike comes of it */
+  private cancelCharge(): void {
+    if (this.chargeT < 0 && this.meleeHold < 0) return;
+    const wasCharging = this.chargeT >= 0;
+    this.chargeT = -1;
+    this.meleeHold = -1;
+    this.clearChargeFx();
+    if (wasCharging) {
+      this.meleeTimer = 0;
+      const anim = this.char.animator;
+      if (anim && anim.playing('upper') === CHARGE_MOVES[this.chargeFamily].ready) anim.release('upper');
+    }
+  }
+
+  /**
+   * Let go: the family's heavy swing, thrown out of the ready pose rather
+   * than from the guard (it starts at its own wind-up key), for the heavy
+   * swing's damage scaled by the charge, with a short lunge behind it.
+   */
+  private releaseCharge(input: FrameInput, game: Game): void {
+    const level = chargeLevel(this.chargeT);
+    const move = CHARGE_MOVES[this.chargeFamily];
+    this.chargeT = -1;
+    this.clearChargeFx();
+    const anim = this.char.animator!;
+    const fists = this.meleeKind === 'fists';
+    const bare = this.chargeFamily === 'fists';
+    this.meleeBare = bare;
+    this.meleeRange = bare ? 1.8 : 3;
+    // a brawler's punches run at their own cadence (combatStyle.ts)
+    const pace = fists ? strikePace(this.characterId) : 1;
+    const clipDur = anim.clips[move.upper].duration;
+    const start = move.from * clipDur;
+    const dur = anim.playOnce('upper', move.upper, 0.05, false, 1 / pace, start);
+    // the combo starts over after it
+    this.meleeStep = 3;
+    this.swingKick = false;
+    this.meleeTimer = dur;
+    this.meleeComboWindow = dur + 0.3;
+    this.meleeHitPending = Math.max(0.03, (move.hit - move.from) * clipDur * pace);
+    this.meleeDamage = this.profile.meleeFinisher * (bare && !fists ? 0.4 : 1) * chargeDamageScale(level);
+    this.chargedStrike = level;
+    this.beginSwingContact(dur, this.meleeHitPending, game);
+    audio.melee(3, this.swingSound);
+    this.cam.shake(0.05 + 0.08 * level);
+    // the lunge: onto a target in front when there is one, else a short
+    // carry forward along the facing
+    const carried = !!this.sectionMove?.carried?.(this);
+    this.swingCarried = carried;
+    const target = carried ? null : this.nearestEnemy(game, bare ? 4 : 6.5, 0.4);
+    const speed = bare ? 11 : 14;
+    if (target) {
+      const dir = target.position.clone().sub(this.position).setY(0).normalize();
+      this.velocity.x = dir.x * speed;
+      this.velocity.z = dir.z * speed;
+      this.facingYaw = Math.atan2(dir.x, dir.z);
+    }
+    this.lungeTarget = target;
+    this.lungeSpeed = speed;
+    this.chargeLunge = carried ? 0 : 0.12 + 0.1 * level;
+    // legs: as a tap's — they take the strike from a stand, and on the move
+    // the gait keeps them (ATTACK_MOVE_FACTOR)
+    const onTheMove = this.grounded && Math.hypot(input.moveX, input.moveY) > 0.2;
+    const legsJoin = !carried && (!!move.lowerAlways || (!target && this.grounded)) && !onTheMove;
+    this.swingLegs = legsJoin;
+    if (legsJoin && anim.clips[move.lower]) anim.playOnce('lower', move.lower, 0.08, false, 1 / pace, start);
+    this.flourished = false;
+  }
+
+  /** the charged release's carry with no target to close on: a short drive along the facing */
+  private carryChargeLunge(dt: number): void {
+    this.chargeLunge -= dt;
+    if (this.lungeTarget || this.swingDone || this.meleeTimer <= 0) return;
+    const speed = this.lungeSpeed * 0.85;
+    this.velocity.x = Math.sin(this.facingYaw) * speed;
+    this.velocity.z = Math.cos(this.facingYaw) * speed;
+  }
+
   updateCombat(dt: number, input: FrameInput, game: Game): void {
     // Which slot is in hand is never something the player has to arrange: the
     // button that uses a weapon is the button that draws it. All the D-pad
@@ -3477,11 +3766,15 @@ export class Player {
     // combo is played on intent and not on rhythm: the next swing starts the
     // frame the current one clears.
     this.meleeBuffer -= dt;
-    if ((input.meleePressed || this.pendingMelee) && this.meleeTimer > 0) this.meleeBuffer = MELEE_BUFFER;
-    const swing = input.meleePressed || this.pendingMelee || this.meleeBuffer > 0;
+    // a press held past a tap winds up a charged strike instead of swinging
+    // (src/game/chargeAttack.ts); a tap comes out of it as the press it was
+    const pressed = this.updateMeleeCharge(dt, input, game);
+    if ((pressed || this.pendingMelee) && this.meleeTimer > 0) this.meleeBuffer = MELEE_BUFFER;
+    const swing = pressed || this.pendingMelee || this.meleeBuffer > 0;
     this.pendingMelee = false;
     if (swing && this.meleeTimer <= 0) {
       this.meleeBuffer = 0;
+      this.chargedStrike = -1;
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
@@ -3571,7 +3864,7 @@ export class Player {
     // was decremented once this frame, so `+ dt` reads its previous value —
     // this fires exactly on the frame it lapses.
     if (
-      !this.flourished && this.sabersDrawn && this.meleeTimer <= 0
+      !this.flourished && this.sabersDrawn && this.meleeTimer <= 0 && this.meleeHold < 0
       && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
     ) {
       this.flourished = true;
@@ -3585,6 +3878,7 @@ export class Player {
     this.updateSaberStow(dt, input);
     if (this.meleeHitPending > 0) this.meleeHitPending -= dt;
     if (this.lungeTarget) this.carryLunge(dt);
+    if (this.chargeLunge > 0) this.carryChargeLunge(dt);
     if (this.swingDur > 0) this.updateSwingContact(dt, game);
 
     // Blaster. The trigger is also the draw: a player who just swung comes out
@@ -3761,6 +4055,9 @@ export class Player {
       this.facingYaw = Math.atan2(dir.x, dir.z);
     }
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
+    this.cancelCharge();
+    this.chargedStrike = -1;
+    this.chargeLunge = 0;
     const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';

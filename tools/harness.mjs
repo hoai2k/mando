@@ -47,7 +47,7 @@ export function blankInput(over = {}) {
   return {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
     dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
-    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+    meleePressed: false, meleeHeld: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false, interactHeld: false,
     ...over,

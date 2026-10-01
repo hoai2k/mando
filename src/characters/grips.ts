@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import { gripClipKey } from './gripClipKey';
+import { CHARGE_READY_RELEASE } from '../game/chargeAttack';
 
 /**
  * One weapon placement as the workbench exports it (`data/*.json`): absolute
@@ -15,13 +16,16 @@ export interface WorkbenchGrip {
  * Index an export's grips by the upper clip each exported pose stands for, and
  * look one up by the clip that is playing. `clipOf` translates workbench pose
  * names to shipped clips; a counterweight variant of a strike finds the grip
- * of the strike it was built from (see gripClipKey).
+ * of the strike it was built from (see gripClipKey), and a charged strike's
+ * ready pose holds the weapon as the strike it releases into does, so the
+ * grip does not snap at the release (src/game/chargeAttack.ts).
  */
 export function clipGrips<E extends WorkbenchGrip & { pose: string }>(
   entries: readonly E[], clipOf: Record<string, string>,
 ): (upperClip: string | null) => E | undefined {
   const grips = new Map(entries.map((entry) => [clipOf[entry.pose], entry]));
-  return (upperClip) => grips.get(gripClipKey(upperClip));
+  return (upperClip) => grips.get(gripClipKey(upperClip))
+    ?? (upperClip && upperClip in CHARGE_READY_RELEASE ? grips.get(CHARGE_READY_RELEASE[upperClip]) : undefined);
 }
 
 /**

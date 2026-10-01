@@ -246,6 +246,7 @@ function stubAnimator(): NonNullable<CharacterInstance['animator']> {
     // creature has neither channel nor chest bone, so both are no-ops
     playing: () => null,
     oneShotProgress: () => 1,
+    endOneShot: () => {},
     setAdditive: () => {},
     freeze: () => {},
   } as unknown as NonNullable<CharacterInstance['animator']>;

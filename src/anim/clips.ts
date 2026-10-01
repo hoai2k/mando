@@ -1290,6 +1290,70 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 0.56], [[0, 10, 0], [0, 12, 0]]),
   ]);
 
+  // ---------- UPPER: charged-strike ready poses (src/game/chargeAttack.ts) ----------
+  // Holding melee past a tap winds the fighter up and holds them there while
+  // the strike gathers power; letting go throws the weapon's heavy swing out
+  // of the pose. Each ready is the wind-up key of the heavy swing it releases
+  // into, held — so the release starts from the shape it is already in and
+  // does not wind up twice — with a slow breath through it so a long hold is
+  // alive rather than frozen (the tremble of a building charge is laid over
+  // it by the controller). Upper channel only: the legs keep their own gait.
+  const ready = (name: string, dur: number, keys: Record<string, [Deg, Deg]>): THREE.AnimationClip =>
+    new THREE.AnimationClip(name, dur, Object.entries(keys).map(([bone, [a, b]]) =>
+      qt(bone, [0, dur / 2, dur], [a, b, a])));
+  // Staff, spear, poleaxe, gaffi: melee3's overhead cock — the weapon high
+  // behind the head, the chest rocked back over the hips, the free arm out
+  // ahead for balance (counterweight.ts's half reach).
+  clips.meleeReadyUpper = ready('meleeReadyUpper', 1.4, {
+    chest: [[-18, -6, 0], [-21, -7, 0]],
+    upperArmR: [[-152, -4, 12], [-156, -5, 12]],
+    forearmR: [[-68, 0, 0], [-72, 0, 0]],
+    upperArmL: [[-55, 20, 18], [-58, 20, 18]],
+    forearmL: [[-62, -12, -12], [-64, -12, -12]],
+    head: [[-4, 6, 0], [-5, 6, 0]],
+  });
+  // the Darksaber's overhead finisher is the same cock (darksaber3 is melee3's)
+  clips.darksaberReadyUpper = clips.meleeReadyUpper.clone();
+  clips.darksaberReadyUpper.name = 'darksaberReadyUpper';
+  // Twin sabers: saber3 gathers both blades in before throwing them apart.
+  // Held, the gather is the wrists crossed out in front of the chest with the
+  // blades scissored up and forward — saber3's own gather folds them back past
+  // the shoulders, which held for more than a beat lays a lit blade across the
+  // fighter's own neck.
+  clips.saberReadyUpper = ready('saberReadyUpper', 1.4, {
+    chest: [[-8, 0, 0], [-10, 0, 0]],
+    upperArmR: [[-72, 34, -10], [-75, 36, -10]],
+    forearmR: [[-48, 0, 0], [-52, 0, 0]],
+    upperArmL: [[-72, -34, 10], [-75, -36, 10]],
+    forearmL: [[-48, -12, -12], [-52, -12, -12]],
+    handR: [[40, 0, 0], [40, 0, 0]],
+    handL: [[40, 0, 0], [40, 0, 0]],
+    head: [[2, 0, 0], [1, 0, 0]],
+  });
+  // Tonfas: tonfa3's cock — both elbows drawn up and back, shafts laid along
+  // the forearms, before they wheel over the top.
+  clips.tonfaReadyUpper = ready('tonfaReadyUpper', 1.4, {
+    chest: [[-2, 0, 0], [-4, 0, 0]],
+    upperArmR: [[-74, -26, -8], [-77, -28, -8]],
+    forearmR: [[-84, 20, 0], [-87, 20, 0]],
+    handR: [[18, -25, -16], [18, -25, -16]],
+    upperArmL: [[-74, 26, 18], [-77, 28, 18]],
+    forearmL: [[-84, -20, -14], [-87, -20, -14]],
+    handL: [[18, 25, 16], [18, 25, 16]],
+  });
+  // Double-bladed saber: staff3's coil — the chest wound well round to the
+  // right with the hilt drawn back past the hip, the lower blade trailing,
+  // eyes still on the target over the lead shoulder.
+  clips.staffReadyUpper = ready('staffReadyUpper', 1.4, {
+    chest: [[-6, -48, 0], [-8, -51, 0]],
+    upperArmR: [[-98, -38, 12], [-101, -40, 12]],
+    forearmR: [[-90, 0, 0], [-93, 0, 0]],
+    handR: [[0, -62, -38], [0, -64, -40]],
+    upperArmL: [[-55, 20, 18], [-58, 20, 18]],
+    forearmL: [[-62, -12, -12], [-64, -12, -12]],
+    head: [[-4, 34, 0], [-4, 36, 0]],
+  });
+
   // ---------- UPPER: block (shield up, braced behind it) ----------
   //
   // The shield hangs off the chest and opens along its +Z, so every degree the

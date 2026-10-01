@@ -374,13 +374,19 @@ export class Animator {
   }
 
   /** Play a one-shot (melee swing, hit react, death); channel returns to normal after. */
-  playOnce(channel: 'lower' | 'upper', name: string, fade = 0.06, clamp = false, timeScale = 1): number {
+  /**
+   * @param start  seconds into the clip to begin from (a charged strike skips
+   *   the wind-up its ready pose already held); the duration returned is what
+   *   is left of the clip from there.
+   */
+  playOnce(channel: 'lower' | 'upper', name: string, fade = 0.06, clamp = false, timeScale = 1, start = 0): number {
     const next = this.action(name);
     if (!next) return 0;
     const cur = this.current[channel];
     if (cur && cur !== name) this.action(cur)?.fadeOut(fade);
     this.dropPartner(channel, fade);
     next.reset();
+    if (start > 0) next.time = Math.min(start, this.clips[name].duration);
     next.weight = 1;
     next.setLoop(THREE.LoopOnce, 1);
     // Always clamp: three disables a LoopOnce action outright the instant it
@@ -398,9 +404,17 @@ export class Animator {
     this.current[channel] = name;
     // `timeScale` shortens the clip in wall-clock seconds, so what the caller
     // is told (and what holds the channel) is how long it will really take
-    const dur = this.clips[name].duration / Math.max(0.05, timeScale);
+    const dur = Math.max(0, this.clips[name].duration - Math.max(0, start)) / Math.max(0.05, timeScale);
     this.oneShotUntil[channel] = this.time + (clamp ? Infinity : dur - 0.05);
     return dur;
+  }
+
+  /**
+   * Stop a one-shot holding its channel, without cutting it: the next `play`
+   * on the channel cross-fades out of it as it would out of a loop.
+   */
+  endOneShot(channel: 'lower' | 'upper'): void {
+    this.oneShotUntil[channel] = 0;
   }
 
   /** The clip currently on a channel, one-shot or loop; null when nothing has been played. */

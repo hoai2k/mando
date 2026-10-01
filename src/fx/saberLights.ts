@@ -100,7 +100,8 @@ export class SaberLights {
       blade.updateWorldMatrix(true, false);
       light.position.set(0, spec.y, 0).applyMatrix4(blade.matrixWorld);
       light.color.setHex(spec.color);
-      light.intensity = spec.intensity;
+      // a charging strike brightens the blade (src/game/chargeAttack.ts)
+      light.intensity = spec.intensity * (1 + ((blade.userData.chargeGlow as number | undefined) ?? 0));
     }
     for (let i = used; i < this.lights.length; i++) this.lights[i].intensity = 0;
   }

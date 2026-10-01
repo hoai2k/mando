@@ -27,6 +27,9 @@ interface PlayerHud {
   energy: HTMLElement;
   heat: HTMLElement;
   heatBar: HTMLElement;
+  /** the melee charge meter under the reticle (src/game/chargeAttack.ts) */
+  charge: HTMLElement;
+  chargeFill: HTMLElement;
   air: HTMLElement;
   airBar: HTMLElement;
   coverHint: HTMLElement;
@@ -146,6 +149,7 @@ export class Hud {
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
         ${CROSSHAIR_SVG}
+        <div class="melee-charge"><div class="fill"></div></div>
         <div class="hud-bars">
           <div class="bar health"><div class="fill"></div><div class="hpnum"></div><div class="label">${TEXT.hud.bars.health}</div></div>
           <div class="bar fuel"><div class="fill"></div><div class="label">${TEXT.hud.bars.fuel}</div></div>
@@ -174,6 +178,8 @@ export class Hud {
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
+        charge: root.querySelector('.melee-charge') as HTMLElement,
+        chargeFill: root.querySelector('.melee-charge .fill') as HTMLElement,
         air: root.querySelector('.bar.air .fill') as HTMLElement,
         airBar: root.querySelector('.bar.air') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
@@ -583,6 +589,12 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
+      // a melee strike winding up: a short meter under the reticle that fills
+      // with the charge and flares once it is full
+      const charge = p.alive ? p.meleeCharge : -1;
+      h.charge.classList.toggle('on', charge >= 0);
+      h.charge.classList.toggle('full', charge >= 1);
+      if (charge >= 0) h.chargeFill.style.transform = `scaleX(${charge})`;
       // the air gauge only under the sea, where it is the clock
       h.airBar.style.display = p.air === null ? 'none' : '';
       if (p.air !== null) {

@@ -16,6 +16,13 @@ export interface FrameInput {
   shootHeld: boolean;
   aimHeld: boolean;
   meleePressed: boolean;
+  /**
+   * The melee button is down this frame. Held past a tap it winds up a
+   * charged strike (src/game/chargeAttack.ts). Optional: a source that only
+   * ever presses (a bot, a section's scripted swing) leaves it unset, and its
+   * presses swing at once, as they always have.
+   */
+  meleeHeld?: boolean;
   rocketPressed: boolean;
   /** camera-zoom modifier — right-stick click held; stick Y then dollies the camera */
   zoomHeld: boolean;
@@ -70,7 +77,7 @@ function blankInput(): FrameInput {
   return {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
-    aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false, interactHeld: false,
+    aimHeld: false, meleePressed: false, meleeHeld: false, rocketPressed: false, slamPressed: false, interactHeld: false,
     zoomHeld: false, zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
   };
@@ -389,6 +396,7 @@ export class InputManager {
       inp.shootHeld ||= this.mouseButtons.has(0);
       inp.aimHeld ||= this.mouseButtons.has(2);
       inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
+      inp.meleeHeld ||= k.has('KeyF') || this.mouseButtons.has(1);
       inp.rocketPressed ||= this.keysPressed.has('KeyQ');
       inp.meleeSwapPressed ||= this.keysPressed.has('Digit1');
       inp.rangedSwapPressed ||= this.keysPressed.has('Digit2') || this.keysPressed.has('KeyE');
@@ -427,6 +435,7 @@ export class InputManager {
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
+        inp.meleeHeld ||= b(BTN.X);
         inp.rocketPressed ||= this.edge(pad, BTN.B);
         // Hold the right stick in and its vertical axis dollies the camera
         // instead of pitching it; yaw keeps working so you can still turn.
