@@ -93,7 +93,8 @@ console.log('  bossk:', JSON.stringify(plain));
 check('a super-jumper without sabers flies the held super jump', plain.flight === 'superjump', plain);
 check('...and holding A no longer rises for ever: the climb tops out at its cap',
   plain.rose > plain.apex - 0.6 && plain.rose < plain.apex + 0.4, plain);
-check('...a high jump all the same (well over ten metres)', plain.rose > 12, plain);
+check('...a high jump all the same: clear of the tallest climb it must make (the Chimney crack\'s 16.8 m ledge)',
+  plain.rose > 16.8 + 1, plain);
 check('...and comes back down while A is still held', plain.landed, plain);
 
 await match('ventress');
@@ -101,6 +102,7 @@ const saber = await page.evaluate(`(${CLIMB})()`);
 console.log('  ventress:', JSON.stringify(saber));
 check('a lightsaber wielder\'s jump tops out at her own, higher cap',
   saber.rose > saber.apex - 0.6 && saber.rose < saber.apex + 0.4, saber);
+check('...high enough to take the whole 24 m crack in one bound', saber.rose > 24 + 1, saber);
 check('...notably higher than a super-jumper without sabers', saber.rose > plain.rose * 1.25, { saber: saber.rose, plain: plain.rose });
 
 // ---- the tucked saber acrobat: blades out, bolts turned ----

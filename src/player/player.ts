@@ -206,36 +206,39 @@ const SUPERJUMP_RISE = 9;
  * fighter without a pack to clear in one bound, plus 15% so the jump never
  * feels like it only just made it.
  *
- * - SUPERJUMP_APEX — the highest ice ledge on the Maldo Kreis crevasse walls
- *   (world/crevasse.ts, the ledge at x -20, z 55: its top is 13.8 m over the
- *   canyon floor). That covers every other required climb too: the Chimney's
- *   tallest step (floor to its first wall ledge, 11.5 m; sections/chimney.ts),
- *   the Mark Runs' fallen sign over the last gap (~7.5 m over the take-off
- *   roof; sections/mark-runs.ts) and a tram roof (3.2 m; sections/tram-top.ts).
- *   13.8 x 1.15 = 15.9.
+ * - SUPERJUMP_APEX — the Chimney's crack (sections/chimney.ts, the last
+ *   stretch, floor 92 to the lip at 116). Its upper wall ledge sits 16.8 m
+ *   over the third floor and has to be reached from that floor in one bound:
+ *   from the lower ledge it is 22 m across under the lip's slab, and a 4 m
+ *   gap under that slab leaves no arc to cross it with. Everything else a
+ *   super-jumper must climb is lower: the crevasse's highest ice ledge
+ *   (13.8 m over the canyon floor; world/crevasse.ts), the Chimney's other
+ *   ledge steps (~11 m), the Mark Runs' fallen sign over the last gap
+ *   (~7.5 m; sections/mark-runs.ts) and a tram roof (3.2 m; tram-top.ts).
+ *   16.8 x 1.15 = 19.3.
  * - SUPERJUMP_APEX_SABER — lightsaber wielders (sabers in the melee kit, the
- *   Darksaber included) leap notably higher: out of the same crevasse onto its
- *   rim in one bound, floor to the highest stretch of rim, 19.5 m
- *   (world/crevasse.ts `heightAt`: rim 2.5-5.5 m over a -14 m floor).
- *   19.5 x 1.15 = 22.4.
+ *   Darksaber included) leap notably higher: the whole of that crack in one
+ *   bound, third floor to the lip, 24 m (the tallest open climb a fighter
+ *   without a pack meets anywhere; the crevasse floor to its rim is 19.5 m).
+ *   24 x 1.15 = 27.6.
  *
  * Each cap is also floored, so the jump stays a big, generous leap even if a
  * level change ever lowers the tallest requirement: never under 12 m for a
- * super-jumper (about five times a plain hop's 1.9 m) and never under 18 m for
- * a saber wielder. Today the requirements win: 15.9 m and 22.4 m.
+ * super-jumper (about six times a plain hop's 1.9 m) and never under 20 m for
+ * a saber wielder. Today the requirements win: 19.3 m and 27.6 m.
  *
  * Neither applies to the jetpack (fuel-limited already) or to a section's
  * boosters (`relightRise`, Covert Sky), which re-arm the climb from wherever
  * the body is every frame they are lit.
  */
 const SUPERJUMP_MARGIN = 1.15;
-/** the tallest required bound for any super-jumper: the crevasse's high ice ledge */
-const SUPERJUMP_NEED = 13.8;
-/** ...and the saber wielder's: the crevasse floor to its rim */
-const SUPERJUMP_NEED_SABER = 19.5;
+/** the tallest required bound for any super-jumper: the Chimney crack's upper ledge */
+const SUPERJUMP_NEED = 16.8;
+/** ...and the saber wielder's: the whole crack, third floor to the lip */
+const SUPERJUMP_NEED_SABER = 24;
 /** the floors: a high jump however little the levels happen to ask for */
 const SUPERJUMP_FLOOR = 12;
-const SUPERJUMP_FLOOR_SABER = 18;
+const SUPERJUMP_FLOOR_SABER = 20;
 export const SUPERJUMP_APEX = Math.max(SUPERJUMP_NEED * SUPERJUMP_MARGIN, SUPERJUMP_FLOOR);
 export const SUPERJUMP_APEX_SABER = Math.max(SUPERJUMP_NEED_SABER * SUPERJUMP_MARGIN, SUPERJUMP_FLOOR_SABER);
 /** super jump: gravity multiplier while feathering the fall with A held */
