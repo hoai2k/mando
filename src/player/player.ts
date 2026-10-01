@@ -67,18 +67,19 @@ const _plungeRing = new THREE.Vector3();
 /**
  * Fighting from the air (`updateAirMelee`).
  *
- * **X in the air is the aerial strike**: `airSlashUpper` over `airSlashLower`,
- * a steep chop down through the space under and ahead of the boots, struck by
- * the weapon's own geometry like every ground swing. Two per airtime; the
- * first one hangs the body for a beat (an upward pop to AIR_SWING_HANG, never
- * a dead stop), the second only checks the fall.
+ * One button, read by which way the body is going:
  *
- * **Y in the air is the plunge** — the old aerial slam, now with a weapon in
- * it: the body drives down at PLUNGE_SPEED with the weapon hauled overhead,
- * and the landing is an area smash whose radius, damage and shove grow with
- * how far it fell (from the airtime's peak). X while already falling fast
- * (faster than AIR_PLUNGE_FALL, about three metres of drop) turns into the
- * plunge as well: a swing from that high is better spent on the ground.
+ * **X on the way up is the aerial strike**: `airSlashUpper` over
+ * `airSlashLower`, a steep chop down through the space under and ahead of the
+ * boots, struck by the weapon's own geometry like every ground swing. Two per
+ * airtime; the first one hangs the body for a beat (an upward pop to
+ * AIR_SWING_HANG, never a dead stop), the second only checks the fall.
+ *
+ * **X on the way down is the plunge**: once the jump has turned over (falling
+ * faster than AIR_PLUNGE_FALL), the body drives down at PLUNGE_SPEED with the
+ * weapon hauled overhead, and the landing is an area smash whose radius,
+ * damage and shove grow with how far it fell (from the airtime's peak). There
+ * is no separate slam button for it.
  */
 const AIR_SWINGS = 2;
 const AIR_SWING_HANG = 2.5;
@@ -87,8 +88,8 @@ const AIR_SWING_DAMAGE = 1.15;
 /** how far under the boots, and how far out, the aerial strike still finds a body by reach (m) */
 const AIR_REACH_BELOW = 3;
 const AIR_REACH_OUT = 2.6;
-/** falling faster than this (m/s), X becomes the plunge */
-const AIR_PLUNGE_FALL = 12;
+/** falling faster than this (m/s) — just past the top of the jump — X becomes the plunge */
+const AIR_PLUNGE_FALL = 1;
 const PLUNGE_SPEED = 30;
 /** the smash at the smallest drop and at PLUNGE_FULL_DROP metres or more */
 const PLUNGE_FULL_DROP = 14;
@@ -1861,8 +1862,7 @@ export class Player {
     this.updateSuperRise(dt, input, game);
     this.updateAirFlip(dt, input, game, jumped);
 
-    // ---- slam: the plunge, and the rest of fighting from the air ----
-    if (input.slamPressed && !this.grounded && this.velocity.y < 6 && !this.slamming) this.beginPlunge(game);
+    // ---- fighting from the air: X going up strikes, X coming down plunges ----
     input = this.updateAirMelee(input, game);
     this.applyFall(dt, input, game);
     this.integrateAndLand(dt, game, anim);

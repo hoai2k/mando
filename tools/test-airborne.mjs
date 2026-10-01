@@ -159,9 +159,9 @@ const AIRSWING = `({ ahead, below }) => {
   T.step(1);
   e.position.set(0, T.ground(0, ahead, 40), ahead);
   e.velocity.set(0, 0, 0);
-  // over it, in the air, facing it
+  // over it, in the air on the way up, facing it
   p.position.set(0, e.position.y + below, 0);
-  p.velocity.set(0, 0, 0);
+  p.velocity.set(0, 3, 0);
   p.grounded = false;
   p.cam.yaw = 0; p.facingYaw = 0;
   T.step(2, [{ ...T.blank() }]);
@@ -185,7 +185,7 @@ const AIRSWING = `({ ahead, below }) => {
 await match('jedi');
 const fromAbove = await page.evaluate(`(${AIRSWING})({ ahead: 0.6, below: 2.6 })`);
 console.log('  air strike, target under the boots:', JSON.stringify(fromAbove));
-check('X in the air plays the aerial strike, arms and legs', fromAbove.upper === 'airSlashUpper' && fromAbove.lower === 'airSlashLower', fromAbove);
+check('X on the way up plays the aerial strike, arms and legs', fromAbove.upper === 'airSlashUpper' && fromAbove.lower === 'airSlashLower', fromAbove);
 check('...it lands on a body below', fromAbove.hurt > 0, fromAbove);
 check('...with a small hang, not a dead stop: the body pops and then falls on',
   fromAbove.popVy > 0 && fromAbove.popVy < 4 && fromAbove.hung < 0.6 && fromAbove.fellAfter, fromAbove);
@@ -201,11 +201,14 @@ const PLUNGE = `({ height }) => {
   T.step(1);
   for (const [e, x] of [[near, 2.5], [far, -6]]) { e.position.set(x, T.ground(x, 0, 40), 0); e.velocity.set(0, 0, 0); e.attackCd = 99; }
   const n0 = near.hp, f0 = far.hp;
+  // out of the last smash's recovery first: a press inside it is spent
+  for (let i = 0; i < 180 && (p.meleeTimer > 0 || p.slamming); i++) T.step(1);
   p.position.y += height;
   p.velocity.set(0, 0, 0);
   p.grounded = false;
-  T.step(2);
-  T.step(1, [{ ...T.blank(), slamPressed: true }]);
+  // X once the fall has begun: on the way down it is the plunge
+  for (let i = 0; i < 30 && p.velocity.y > -1.5; i++) T.step(1);
+  T.step(1, [{ ...T.blank(), meleePressed: true }]);
   const pose = { upper: p.char.animator.playing('upper'), lower: p.char.animator.playing('lower'), vy: p.velocity.y };
   for (let i = 0; i < 240 && !p.grounded; i++) {
     for (const e of [near, far]) e.attackCd = 99;
@@ -221,7 +224,7 @@ const low = await page.evaluate(`(${PLUNGE})({ height: 2.2 })`);
 const high = await page.evaluate(`(${PLUNGE})({ height: 14 })`);
 console.log('  plunge, low:', JSON.stringify(low));
 console.log('  plunge, high:', JSON.stringify(high));
-check('Y in the air drives down in the plunge pose', low.upper === 'plungeUpper' && low.vy < -20, low);
+check('X on the way down drives down in the plunge pose', low.upper === 'plungeUpper' && low.vy < -20, low);
 check('...and lands on the smash', low.landed && low.smash === 'plungeSmashUpper', low);
 check('a low plunge hurts what is close', low.nearHurt > 0, low);
 check('...but not what is six metres off', low.farHurt === 0, low);
