@@ -119,6 +119,8 @@ const SUITES = [
   { name: 'test-overheat', weight: 21 },
   { name: 'test-shoulder-width', weight: 20 },
   { name: 'test-ragdoll', weight: 17 },
+  // spiders tumble on death and never come to rest standing on end
+  { name: 'test-creature-death', weight: 60 },
   { name: 'test-menunav', weight: 9 },
   { name: 'test-footwork', weight: 30 },
   // `harness` is not here on purpose: it is the smoke every push to main

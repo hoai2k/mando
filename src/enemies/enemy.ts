@@ -1772,9 +1772,10 @@ export class Enemy {
       _base.copy(this.velocity).multiplyScalar(0.85);
       _spin.copy(this.velocity).multiplyScalar(0.3);
       // A free-form rig (the spiders, the massiff, the drone) has no named
-      // skeleton for the articulated solver, so it dies as one rigid body
-      // instead — same Verlet world, same contacts, shape-matched every
-      // step. Both simulate; neither plays a canned fall.
+      // skeleton for the articulated solver, so it dies as one rounded rigid
+      // body instead — an ellipsoid measured off the drawn body, thrown and
+      // spun by the hit, rolling off any end it lands on (and a spider's legs
+      // curl as it goes). Both simulate; neither plays a canned fall.
       this.ragdoll = this.char.rig
         ? new Ragdoll(this.char.rig, _base, _spin)
         : new RigidRagdoll(this.char.root, this.radius, this.height, _base, _spin);
