@@ -107,10 +107,17 @@ for (const id of ids) {
       out.seconds = f / 30;
     }
     out.debug = c.section?.debug?.() ?? null;
+    // where everyone is when time runs out: a stall is usually one player stuck
+    // somewhere the autopilot cannot get them out of
+    out.party = g.players.map((p) => ({
+      at: [p.position.x, p.position.y, p.position.z].map((v) => +v.toFixed(1)),
+      alive: p.alive, ride: p.vehicle?.def?.name ?? null,
+    }));
     out.to = c.stageIdx;
     return out;
   }, [blankInput(), Number(process.env.SECTION_SECONDS ?? 420)]);
-  check(`${id}: the autopilot finishes it`, run.completed, JSON.stringify({ s: run.seconds, debug: run.debug }));
+  check(`${id}: the autopilot finishes it`, run.completed,
+    JSON.stringify({ s: run.seconds, debug: run.debug, ...(run.completed ? {} : { party: run.party, deaths: run.deaths }) }));
   check(`${id}: and the run carries on into the next stage`, run.advanced, `stage ${built.stageIdx} -> ${run.to}`);
   check(`${id}: nobody ends up outside the playable area`, run.outside === 0, String(run.outside));
   check(`${id}: the autopilot ran without errors`, run.errors.length === 0, run.errors.slice(0, 3).join(' | '));

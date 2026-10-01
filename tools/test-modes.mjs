@@ -646,8 +646,17 @@ const doors = await h.page.evaluate(async () => {
 });
 check('campaign: a door ahead of the party is shut', doors.aheadShut, JSON.stringify(doors));
 // the leaves have to actually part, and nothing static may cover the opening
+// Shut, the two leaves meet in the middle, so each one's half-width is its
+// centre's distance from it and together they span the opening. Open, a
+// leaf's inner edge has to be past the opening's edge. (This was a fixed 1.5 m
+// of travel, from when the leaves were sized to the whole wall cut; since
+// 55547cf they fill only the frame's 2.7 m clear opening and slide their own
+// width plus 0.1 m into the collar — clear, but 1.45 m.)
 check('campaign: opening a door moves its leaves clear',
-  doors.leavesOpen.every((x, i) => Math.abs(x) > Math.abs(doors.leavesShut[i]) + 1.5),
+  doors.leavesOpen.every((x, i) => {
+    const half = Math.abs(doors.leavesShut[i]);
+    return Math.abs(x) - half >= 2 * half + 0.05;
+  }),
   JSON.stringify({ shut: doors.leavesShut, open: doors.leavesOpen }));
 check('campaign: no static door sculpt left covering the doorway',
   doors.sculptInDoorway === false, JSON.stringify(doors));

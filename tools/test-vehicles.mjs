@@ -330,6 +330,11 @@ const redirect = await h.page.evaluate(() => {
   const p = g.players[0];
   const v = p.vehicle;
   const pHp = p.hp, vHp = v.hp;
+  // The wave is still shooting, and a bolt that landed in the last 0.3 s
+  // leaves the rider in his hit guard (HIT_IFRAMES), which turns this hit into
+  // nothing at all — the nightly of 2026-10-01 saw exactly that ("player -0,
+  // hull -0.0"). What is measured is where a hit lands, not the guard.
+  p.hitGuard = 0;
   p.damage(20, v.pos);
   return { on: !!p.vehicle, pLost: pHp - p.hp, vLost: vHp - v.hp };
 });

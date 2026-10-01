@@ -416,6 +416,13 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   // so it gets them without sections (`?sections=off` does the same by hand);
   // `tools/test-sections.mjs` asks for them with `launch({ sections: true })`.
   if (!sections) await page.addInitScript(() => { window.__sectionsOff = true; });
+  // Suites read what the page fetched off `performance.getEntriesByType('resource')`,
+  // and the browser keeps only 250 of those by default, silently dropping the
+  // rest. About 150 sound files are fetched before the departures board, so
+  // by then the buffer was full and everything warmed after it
+  // (the chosen sky, wave one's hostiles) looked as if it was never fetched —
+  // test-loading failed on files the game had in fact pulled down.
+  await page.addInitScript(() => performance.setResourceTimingBufferSize(100000));
   await page.goto(url, { waitUntil: 'networkidle' });
   await sleep(1500);
 

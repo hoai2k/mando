@@ -834,8 +834,14 @@ function build(ctx: SectionContext): SectionInstance {
         // across the nearer plank, up the stair, to the upper deck
         const plankZ = BARGE.planks[slot % 2];
         if (!onBarge(p.position)) {
+          // Line up with the plank's gap in the skiff's rail first, then walk
+          // straight across. (The test used to be "still short of the foot in
+          // x", and a hunter who reached that x off the gap's line — coming up
+          // the deck from astern — headed diagonally for the barge into the
+          // solid rail beside the gap and leaned on it for the rest of the run.)
           const foot = V(plankTo() - 0.8, SKIFF.deck, plankZ);
-          if (onSkiff(p.position) && Math.hypot(foot.x - p.position.x, foot.z - p.position.z) > 1.2 && p.position.x < foot.x - 1.2) return steer(foot);
+          const inLane = Math.abs(p.position.z - plankZ) < BARGE.plankHalf - 0.5;
+          if (onSkiff(p.position) && !inLane) return steer(foot);
           return steer(V(-BARGE.halfBeam + 2, BARGE.lower, plankZ));
         }
         if (phase === 'deck') {
