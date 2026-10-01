@@ -1,5 +1,5 @@
 {
-  "_readme": "Chase-camera follow distance, as multipliers of the player's chase distance (1.9 m by default; the right-stick dolly scales it). Speeds are m/s: Din runs at about 7.4 and sprints at 14.4. Lambdas are smoothing rates (higher = faster). Edit and reload.",
+  "_readme": "Chase-camera follow distance, as multipliers of the player's chase distance (1.9 m by default; the right-stick dolly scales it). Speeds are m/s: Din runs at about 7.4 and sprints at 14.4. Lambdas are smoothing rates (higher = faster). Edit and reload. Framing (keeps the character on screen when a wall pulls the camera in): framingMinVisible / framingAimMinVisible = share of the body's sample points (feet, knees, hips, chest, both shoulders, head) that must be on screen, hip-fire / aiming, before the camera starts sliding the shoulder offset in; framingCentre = how far from the middle of the screen the chest may sit, as a share of the half-screen (0.8 = the central 80%); shoulderFloor = the smallest sideways shoulder offset framing may slide down to, metres (keeps the helmet off the crosshair); framingRaise = how far framing may lift the camera when that buys it room over an obstacle, metres; framingInLambda / framingOutLambda = how fast the camera eases in off the shoulder when the body is leaving the frame / back out to the shoulder once there is room again; shoulderWallPad = air kept between the camera's shoulder pivot and a wall at the character's side, metres. shoulderSwap = how far over the LEFT shoulder framing may move the camera when the right side has no room, as a share of the shoulder offset (0 = never swap shoulders, 1 = a full mirror); framingSwapMargin = how much better the other shoulder must frame the body before the camera crosses over, so it doesn't flip back and forth. framingHysteresis = once framing has moved the camera, how much room to spare (share of the half-screen) the normal framing needs before the camera eases back to it, so it doesn't tug in and out at the edge.",
   "nearRatio": 0.86,
   "farRatio": 1.6,
   "calmSpeed": 1.5,
@@ -11,5 +11,16 @@
   "closeHold": 0.4,
   "climbWeight": 0.7,
   "flyingFloor": 0.5,
-  "dashFloor": 0.85
+  "dashFloor": 0.85,
+  "framingMinVisible": 0.7,
+  "framingAimMinVisible": 0.5,
+  "framingCentre": 0.8,
+  "shoulderFloor": 0.2,
+  "framingRaise": 0.45,
+  "framingInLambda": 7,
+  "framingOutLambda": 2.5,
+  "shoulderWallPad": 0.25,
+  "shoulderSwap": 1,
+  "framingSwapMargin": 0.05,
+  "framingHysteresis": 0.04
 }
