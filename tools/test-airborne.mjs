@@ -248,7 +248,10 @@ const AGILE = `async ({ kind, dist, secs }) => {
   if (e.airMove !== undefined) e.airCd = 0.3;
   const hp0 = p.hp;
   const out = { kind, moves: [], clips: [], hurt: 0, airborne: 0, firstAt: -1 };
-  for (let i = 0; i < secs * 60; i++) {
+  // A move that starts near the end of the window is given time to finish:
+  // the nightly of 2026-10-02 saw a Ventress open at 5.73 s of 6 and the run
+  // end with her still in the crouch, which read as no leap and no hit.
+  for (let i = 0; i < secs * 60 || (e.airMove && i < (secs + 3) * 60); i++) {
     e.committed = true;
     // the player stands, facing it, doing nothing
     p.cam.yaw = 0; p.facingYaw = 0;
@@ -271,11 +274,13 @@ const AGILE = `async ({ kind, dist, secs }) => {
   return out;
 }`;
 for (const [kind, move] of [['rivalVentress', 'strike'], ['rivalGalen', 'strike'], ['rivalMaul', 'plunge'], ['officer', 'plunge']]) {
-  // the officer splits its openers with the lunge: give it a few goes
+  // the officer splits its openers with the lunge, and any of them can be slow
+  // to open (a cooldown, a wave hostile underfoot): give each a few goes
   let r;
   for (let attempt = 0; attempt < 4; attempt++) {
     r = await page.evaluate(`(${AGILE})({ kind: '${kind}', dist: 9, secs: 6 })`);
-    if (r.moves.length) break;
+    // a go counts once the move has actually been through the air
+    if (r.moves.length && r.airborne > 10) break;
   }
   console.log(`  ${kind}:`, JSON.stringify(r));
   check(`a ${kind} takes to the air with its ${move}`, r.moves.includes(move) && r.airborne > 10, r);

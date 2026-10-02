@@ -397,8 +397,13 @@ const RB_ROLL_RESIST = 12;
 const RB_CONTACT_DRAG = 2.5;
 /** how close to horizontal the long axis must be (|axis·up|) to count as lying */
 const RB_LYING = Math.sin((35 * Math.PI) / 180);
-/** how many of the drawn body's points are kept for the final placement */
+/** how many of the drawn body's points are kept for easing it onto the ground as it settles */
 const CLOUD_POINTS = 240;
+/**
+ * How many drawn vertices the final placement reads (`layOnTerrain`), once per
+ * corpse — enough that a thin part (a leg tip) cannot fall between them.
+ */
+const LAY_POINTS = 3000;
 /** air drag, 1/s, on spin and travel */
 const RB_AIR_DRAG = 0.05;
 /** asleep: slower than these (m/s, rad/s) for RB_SLEEP_TIME seconds, in contact */
@@ -936,6 +941,9 @@ export class RigidRagdoll {
     if (this.settleT >= 1) {
       this.settleFrom = null;
       this.active = false;
+      // the legs finish their curl before the body is laid, so what is laid
+      // onto the ground is the pose it will lie in
+      if (this.legs) { this.legs.pose(1); this.legs = null; }
       this.layOnTerrain(physics);
     }
   }
@@ -959,14 +967,43 @@ export class RigidRagdoll {
    * drawn body rather than the plane at one contact: lower (or raise) it until
    * its lowest point just touches. A body the size of the broodmother spans
    * enough dune that the plane alone leaves a hand's width of air under her.
+   *
+   * Measured on the body as it is drawn now, in its final pose — not on the
+   * points taken when it died. Those were the right shape for the tumble, but
+   * a sample of them missed thin parts (a leg tip into the sand), and a dense
+   * one put the body on extremities that no longer hang where they did at
+   * death (the body up off the ground). Falls back to the death sample for a
+   * body with nothing drawn.
    */
   private layOnTerrain(physics: PhysicsWorld): void {
-    if (!this.cloud.length) return;
+    this.drive();
     let gap = Infinity;
-    for (const p of this.cloud) {
-      _a.copy(p).applyQuaternion(this.rot).add(this.center);
-      const g = physics.groundHeight(_a.x, _a.z, _a.y + 0.3);
-      if (g > -Infinity) gap = Math.min(gap, _a.y - g);
+    const meshes: THREE.Mesh[] = [];
+    const walk = (o: THREE.Object3D): void => {
+      if (!o.visible || o.userData?.readout) return;
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.geometry?.attributes?.position) meshes.push(mesh);
+      for (const c of o.children) walk(c);
+    };
+    walk(this.node);
+    let total = 0;
+    for (const m of meshes) total += m.geometry.attributes.position.count;
+    const stride = Math.max(1, Math.floor(total / LAY_POINTS));
+    for (const m of meshes) {
+      const n = m.geometry.attributes.position.count;
+      for (let i = 0; i < n; i += stride) {
+        m.getVertexPosition(i, _a);   // skinned: posed by the bones
+        _a.applyMatrix4(m.matrixWorld);
+        const g = physics.groundHeight(_a.x, _a.z, _a.y + 0.3);
+        if (g > -Infinity) gap = Math.min(gap, _a.y - g);
+      }
+    }
+    if (!Number.isFinite(gap)) {
+      for (const p of this.cloud) {
+        _a.copy(p).applyQuaternion(this.rot).add(this.center);
+        const g = physics.groundHeight(_a.x, _a.z, _a.y + 0.3);
+        if (g > -Infinity) gap = Math.min(gap, _a.y - g);
+      }
     }
     // never more than the ellipsoid's own size: a cliff edge is not a correction
     const most = Math.min(this.semi.x, this.semi.y, this.semi.z);

@@ -44,7 +44,11 @@ const results = await h.page.evaluate(async ({ KINDS, BEARINGS, blank, wantShots
   const p = g.players[0];
   const V3 = p.position.constructor;
 
-  /** every skinned vertex of the visible body, in world space (a stride of them) */
+  /**
+   * every skinned vertex of the visible body, in world space — all of them: a
+   * body resting on a curled leg touches the ground with a handful of
+   * vertices, and a sample that skipped them read the rest of it as floating
+   */
   const vertsOf = (root) => {
     root.updateMatrixWorld(true);
     const out = [];
@@ -56,8 +60,7 @@ const results = await h.page.evaluate(async ({ KINDS, BEARINGS, blank, wantShots
       if (!o.isMesh || !o.geometry?.attributes?.position) return;
       if (o.userData?.readout) return;
       const n = o.geometry.attributes.position.count;
-      const step = Math.max(1, Math.floor(n / 1500));
-      for (let i = 0; i < n; i += step) {
+      for (let i = 0; i < n; i++) {
         o.getVertexPosition(i, v);
         v.applyMatrix4(o.matrixWorld);
         out.push([v.x, v.y, v.z]);
@@ -123,17 +126,28 @@ const results = await h.page.evaluate(async ({ KINDS, BEARINGS, blank, wantShots
       // how far each of the body's own axes ended from world up
       const upY = new V3(0, 1, 0).applyQuaternion(root.quaternion).y;
       const verts = vertsOf(root);
-      let low = Infinity, lx = 0, lz = 0, sx = 0, sz = 0;
-      for (const [x, y, z] of verts) { if (y < low) { low = y; lx = x; lz = z; } sx += x; sz += z; }
+      let low = Infinity, sx = 0, sz = 0;
+      for (const [x, y, z] of verts) { low = Math.min(low, y); sx += x; sz += z; }
       sx /= verts.length || 1; sz /= verts.length || 1;
-      // ground under the lowest vertex, and the worst point's clearance: the
-      // most-sunk vertex is the deepest anything goes into the terrain
-      const gLow = g.board.physics.groundHeight(lx, lz, low + 1.5);
-      let sunk = 0;
-      for (let i = 0; i < verts.length; i += 3) {
-        const [x, y, z] = verts[i];
-        const gh = g.board.physics.groundHeight(x, z, y + 1.5);
-        if (gh > -Infinity) sunk = Math.max(sunk, gh - y);
+      // How it lies, measured against what is under each part of it:
+      //  - clearance: the nearest part of the body to whatever it is lying on
+      //    (terrain, or a rock's top). That is what the game lays a corpse
+      //    onto (RigidRagdoll.layOnTerrain), and it is the right question on a
+      //    slope. This used to be the ground under the *lowest* vertex, which
+      //    across a dune is the downhill end hanging over falling ground —
+      //    measured as "floating" 0.2-0.4 m with the uphill side on the sand
+      //    (nightly 2026-10-02: 0.213, 0.152 for the broodmother).
+      //  - sunk: the deepest any part goes into the *terrain*. Against
+      //    `groundHeight` a body thrown against a rock counted the rock's top
+      //    as the ground and read as buried 1.2 m deep; a corpse can rest
+      //    against a prop, which is not the sand swallowing it.
+      const phys = g.board.physics;
+      let sunk = 0, clear = Infinity;
+      for (const [x, y, z] of verts) {
+        const gh = phys.groundHeight(x, z, y + 1.5);
+        if (gh > -Infinity) clear = Math.min(clear, y - gh);
+        const th = phys.heightAt ? phys.heightAt(x, z) : gh;
+        if (th > -Infinity) sunk = Math.max(sunk, th - y);
       }
       // the leg chains, against the pose they died in
       const legs1 = legPose(root);
@@ -149,7 +163,7 @@ const results = await h.page.evaluate(async ({ KINDS, BEARINGS, blank, wantShots
         settled: settledAt >= 0 ? +settledAt.toFixed(2) : null,
         tilt: +tilt.toFixed(1),
         upY: +upY.toFixed(2),
-        offGround: gLow > -Infinity ? +(low - gLow).toFixed(3) : null,
+        offGround: Number.isFinite(clear) ? +clear.toFixed(3) : null,
         sunk: +sunk.toFixed(3),
         moved: +Math.hypot(root.position.x - pos0.x, root.position.z - pos0.z).toFixed(2),
         turned: +(peakTurn * 180 / Math.PI).toFixed(0),
@@ -251,9 +265,8 @@ for (const [kind, trials] of Object.entries(results.out)) {
   // the whole complaint: never balanced on end
   check(`${kind} lies with its long axis within 35° of horizontal`,
     trials.every((t) => t.tilt <= 35), trials.map((t) => t.tilt));
-  // On the ground: the lowest drawn vertex sits on the terrain, and nothing
-  // goes far into it. A body draped over a dune crest has a little air under
-  // its lowest point on one side, so the allowance is a hand's width.
+  // On the ground: the part of the body nearest the ground touches it, and
+  // nothing goes far into the terrain (see the measurement above).
   check(`${kind} rests on the ground (not floating)`,
     trials.every((t) => t.offGround !== null && t.offGround < 0.12), trials.map((t) => t.offGround));
   check(`${kind} is not sunk into the ground`,
