@@ -453,11 +453,39 @@ function makeClips(p: Proportions): ClipSet {
     qt('footR', [0, 1], [[-20, 0, 0], [-20, 0, 0]]),
   ]);
 
+  // The slide in hand (the workbench edit of 2026-10-03): the same legs, but
+  // sitting up into the run — the spine brings the chest forward over the
+  // hips, the posture of someone steering. The player blends from the lying
+  // `slideLower` to this by how much the slide is being worked (`slidePose`).
+  clips.slideSitLower = new THREE.AnimationClip('slideSitLower', 1, [
+    pt('hips', [0, 1], [[0, hipY - 0.15, 0], [0, hipY - 0.15, 0]]),
+    qt('hips', [0, 1], [[-40, 0, 0], [-40, 0, 0]]),
+    qt('spine', [0, 1], [[69.13, -2.5, -2.14], [69.13, -2.5, -2.14]]),
+    qt('upperLegL', [0, 1], [[-10, 0, 8], [-10, 0, 8]]),
+    qt('lowerLegL', [0, 1], [[30, 0, 0], [30, 0, 0]]),
+    qt('footL', [0, 1], [[12, 0, 0], [12, 0, 0]]),
+    qt('upperLegR', [0, 1], [[-5, 0, -9], [-5, 0, -9]]),
+    qt('lowerLegR', [0, 1], [[65, 0, 0], [65, 0, 0]]),
+    qt('footR', [0, 1], [[-20, 0, 0], [-20, 0, 0]]),
+  ]);
+
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),
     qt('upperArmL', [0, 1.5, 3], [[8, 0, 21], [10, 0, 22], [8, 0, 21]]),
     qt('upperArmR', [0, 1.5, 3], [[8, 0, -21], [10, 0, -22], [8, 0, -21]]),
+    qt('forearmL', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
+    qt('forearmR', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
+    qt('head', [0, 1.5, 3], [[0, 0, 0], [1, -3, 0], [0, 0, 0]]),
+  ]);
+
+  // The arms on the slide (the workbench edit of 2026-10-03, made on the slide
+  // pose): idle's breathing, with the arms held wider and lower for balance.
+  // Its own clip, so the idle stance everywhere else keeps its arms.
+  clips.slideUpper = new THREE.AnimationClip('slideUpper', 3, [
+    qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),
+    qt('upperArmL', [0, 1.5, 3], [[-1.07, -6.67, 35.68], [0.93, -6.67, 36.68], [-1.07, -6.67, 35.68]]),
+    qt('upperArmR', [0, 1.5, 3], [[-12.59, -0.97, -26.31], [-10.59, -0.97, -27.31], [-12.59, -0.97, -26.31]]),
     qt('forearmL', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('forearmR', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('head', [0, 1.5, 3], [[0, 0, 0], [1, -3, 0], [0, 0, 0]]),

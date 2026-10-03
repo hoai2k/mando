@@ -121,6 +121,15 @@ export const SLIDE = {
   crashKeep: 0.35,
   crashHurt: 10,
   crashHit: 12,
+  /**
+   * The pose: a body being steered sits up (1); one left to run — the stick
+   * let go for `letGo` seconds, and going faster than `lieBack` — lies back
+   * into it (0). Slow, it sits whatever the stick does: lying back at a crawl
+   * reads as a fall, not a run.
+   */
+  controlStick: 0.2,
+  letGo: 0.6,
+  lieBack: 11,
   /** how firmly the camera is swung to look down the line while the look stick is idle */
   lookAhead: 2.2,
 };
@@ -135,6 +144,8 @@ export interface SlideState {
   kicked: number;
   /** seconds since the last crash into a body */
   crashed: number;
+  /** seconds since the stick last asked anything of the slide */
+  idle: number;
 }
 
 /**
@@ -143,7 +154,7 @@ export interface SlideState {
  * fighter's own melee swung from it, and hip-fire only.
  */
 export class SlideMove {
-  readonly state: SlideState[] = [0, 1, 2, 3].map(() => ({ sliding: false, speed: 0, digging: false, kickCd: 0, kicked: 99, crashed: 99 }));
+  readonly state: SlideState[] = [0, 1, 2, 3].map(() => ({ sliding: false, speed: 0, digging: false, kickCd: 0, kicked: 99, crashed: 99, idle: 99 }));
   private readonly n = new THREE.Vector3();
 
   constructor(private readonly opts: SlideOpts = {}) {}
@@ -158,6 +169,7 @@ export class SlideMove {
       adjust: (p, dt, input, game) => this.adjust(p, dt, input, game),
       steer: (p, dt, input, game) => this.steer(p, dt, input, game),
       crouch: (p) => this.on(p) && this.state[p.slot].speed > 2.5,
+      slidePose: (p) => this.pose(p.slot),
       carried: (p) => this.state[p.slot].sliding,
       meleeHit: (p, target, amount) => this.meleeHit(p, target, amount),
     };
@@ -168,8 +180,11 @@ export class SlideMove {
     st.kickCd -= dt;
     st.kicked += dt;
     st.crashed += dt;
+    st.idle += dt;
     st.sliding = this.on(p);
     if (!st.sliding) return input;
+    // working the slide — carving, digging in, shoving off — sits you up
+    if (Math.hypot(input.moveX, input.moveY) > SLIDE.controlStick) st.idle = 0;
     // what the buttons mean on the ice: no sprint and no dodge (there is no
     // footing to push off), and hip-fire only (the sights want a stance).
     // Melee goes through: the fighter swings their own weapon (or fists) from
@@ -376,6 +391,14 @@ export class SlideMove {
     (target as Partial<Enemy>).knockdown?.(SLIDE.kickDown);
     const over = Math.max(0, st.speed - SLIDE.crashAbove);
     return Math.max(amount, SLIDE.kickDamage + over * SLIDE.kickDamagePerSpeed);
+  }
+
+  /** 0 lying back into the run, 1 sitting up and steering it (see `SLIDE.letGo`) */
+  pose(slot: number): number {
+    const st = this.state[slot];
+    if (!st || st.idle < SLIDE.letGo) return 1;
+    // eased in over the speed band above `lieBack`, so the lean comes with the pace
+    return 1 - Math.min(1, Math.max(0, (st.speed - SLIDE.lieBack) / 6));
   }
 }
 

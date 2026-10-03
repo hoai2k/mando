@@ -269,3 +269,25 @@ at 1.5 m) — both with stand-ins.
   doors wait for the party with Y to go now, crossed doors are Y-only, and
   boss seals are one-way forward for every body — see
   `docs/MISSIONS_OUTDOOR.md` §1.9 and `tools/test-seals.mjs`.
+
+## Round 4 (2026-10-03, workbench pose edit: the slide sits up when steered)
+
+- **Two slide poses, blended by control.** `slideSitLower` (anim/clips.ts) is
+  the workbench edit: `slideLower`'s legs and hips with the spine brought up to
+  69° so the chest sits forward over the hips — the posture of someone steering.
+  `slideLower` (lying back into the run) is unchanged.
+- **Which one.** K7's `SlideMove.pose(slot)` (new `SectionMove.slidePose`
+  hook, forwarded by `composeMoves`): 1 = sitting up while the stick is being
+  worked (any tilt over 0.2, and for 0.6 s after it is let go); with the stick
+  released the body lies back over the speed band 11–17 m/s (fully back above
+  17). Slow, it always sits — lying back at a crawl reads as a fall. The player
+  eases between the two with `playBlend` (`SLIDE_POSE.sitRate` 3/s), and the
+  neck's forward tilt (which keeps the eyes on the run against the recline)
+  shrinks as the body sits up.
+- **Arms.** The edit also moved the arms in `idleUpper`. That clip is the
+  idle, landing, cover and crouch-walk stance too, so the edit went into a new
+  `slideUpper` (idle's breathing, arms wider and lower) played only on the
+  slide when not firing; the idle everywhere else is untouched.
+- Workbench: "Slide — feet first, let go" and a new "Slide — sitting up,
+  steering" pose, both on `slideUpper`.
+- Test: `test-section-crevasse` checks steer → 1 and let go at speed → lying back.

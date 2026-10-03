@@ -71,6 +71,11 @@ const chute = await page.evaluate(async (blank) => {
   step(20, { moveX: 1 });
   out.carveDx = p.position.x - x0;
   out.carveSpeed = speed();
+  // the pose: steering sits the body up; let go at speed, it lies back
+  out.steerPose = kit.slide.pose(0);
+  step(30);
+  out.freePose = kit.slide.pose(0);
+  out.freeSpeed = speed();
 
   // 4. the wall: stick hard over for four seconds, and still in the channel
   put(0, 160, 18);
@@ -140,6 +145,8 @@ check('pulling back digs in: slower, but not stopped', chute.dug < chute.pulled 
   `${chute.dug.toFixed(1)} vs ${chute.pulled.toFixed(1)} m/s`);
 check('the stick carves the heading (right is −x going downhill) and keeps the speed',
   chute.carveDx < -1.5 && chute.carveSpeed > 14, `dx ${chute.carveDx.toFixed(2)}, ${chute.carveSpeed.toFixed(1)} m/s`);
+check('steering sits the body up; let go at speed, it lies back into the run',
+  chute.steerPose === 1 && chute.freePose < 0.5, `steer ${chute.steerPose}, let go ${chute.freePose.toFixed(2)} at ${chute.freeSpeed.toFixed(0)} m/s`);
 check('the ice walls hold: stick hard over for four seconds, never out of the channel',
   chute.wallOutside === 0 && chute.wallSide <= 0.01, `outside ${chute.wallOutside}, past the wall ${chute.wallSide.toFixed(2)} m`);
 check('there is a spider to kick', chute.hadSpider);

@@ -126,6 +126,11 @@ export interface SectionMove {
   /** hold the body in the crouched pose this frame (K7's surf) */
   crouch?(p: Player): boolean;
   /**
+   * K7's slide pose: 0 lying back into a run left to itself, 1 sitting up and
+   * steering it. The player eases between the two.
+   */
+  slidePose?(p: Player): number;
+  /**
    * The section's own locomotion is carrying the body this frame (K7's
    * slide): a swing plays on the arms and lands as normal, but neither lunges
    * nor plants the feet — the velocity and the legs stay the section's.

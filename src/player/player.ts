@@ -529,6 +529,8 @@ const SLIDE_POSE = {
   tiltRate: 8,
   /** the head brought forward against the recline, radians, so the eyes stay on the run */
   neckForward: 0.42,
+  /** how fast the slide eases between lying back and sitting up, per second */
+  sitRate: 3,
   /** how fast the stance comes on and goes, per second */
   blendRate: 8,
   /**
@@ -914,6 +916,8 @@ export class Player {
   private slideTiltX = 0;
   private slideTiltZ = 0;
   private slideBlend = 0;
+  /** 0 lying back into the run, 1 sitting up steering it (K7's `slidePose`), eased */
+  private slideSit = 1;
   /** metres the body is lifted (or lowered) to put its lowest sole on the ice */
   slideGround = 0;
   /**
@@ -2790,10 +2794,19 @@ export class Player {
     if (this.autoCrouching || surf) {
       // the surf is the feet-first slide: weight back, boots leading down the
       // ice (`slideLower`; SLIDE_POSE tips it onto the slope in syncVisual)
-      if (surf) anim.play('lower', anim.clips.slideLower ? 'slideLower' : 'crouchWalkLower', 0.15, 0);
-      else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+      // Steering sits the body up (`slideSitLower`); a run left to itself lies
+      // back into it (`slideLower`); the two are blended by how much the
+      // slide is being worked, eased so it settles rather than snaps.
+      if (surf) {
+        const want = this.sectionMove?.slidePose?.(this) ?? 1;
+        this.slideSit = damp(this.slideSit, want, SLIDE_POSE.sitRate, dt);
+        if (anim.clips.slideLower && anim.clips.slideSitLower) {
+          anim.playBlend('lower', 'slideLower', 'slideSitLower', this.slideSit, 1, 0.15);
+        } else anim.play('lower', anim.clips.slideLower ? 'slideLower' : 'crouchWalkLower', 0.15, 0);
+      } else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+      const rest = surf && anim.clips.slideUpper ? 'slideUpper' : 'idleUpper';
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
-      else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
+      else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : rest);
     } else if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
@@ -4713,7 +4726,8 @@ export class Player {
     this.slideTiltZ = damp(this.slideTiltZ, tiltZ, SLIDE_POSE.tiltRate, dt);
     this.slideBlend = damp(this.slideBlend, surf ? 1 : 0, SLIDE_POSE.blendRate, dt);
     if (this.slideBlend < 1e-3) this.slideBlend = 0;
-    this.char.animator?.setAdditive('neck', this.slideBlend * SLIDE_POSE.neckForward, 0, 0);
+    // the head comes forward against the recline; sitting up it has less to undo
+    this.char.animator?.setAdditive('neck', this.slideBlend * SLIDE_POSE.neckForward * (1 - 0.8 * this.slideSit), 0, 0);
     this.char.root.rotation.x = this.leanX + this.flipAngle + this.slideTiltX;
     this.char.root.rotation.z = this.slideTiltZ;
     if (this.flipAngle !== 0) {

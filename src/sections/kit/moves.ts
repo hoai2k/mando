@@ -30,6 +30,11 @@ export function composeMoves(...moves: (SectionMove | null | undefined)[]): Sect
     crouch(p: Player): boolean {
       return list.some((m) => m.crouch?.(p) ?? false);
     },
+    slidePose(p: Player): number {
+      let v = 0;
+      for (const m of list) if (m.slidePose) v = Math.max(v, m.slidePose(p));
+      return v;
+    },
     carried(p: Player): boolean {
       return list.some((m) => m.carried?.(p) ?? false);
     },
