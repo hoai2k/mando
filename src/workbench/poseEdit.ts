@@ -61,6 +61,14 @@ export class PoseEditor {
   /** live angle of the drag in progress, degrees — for the panel read-out */
   dragAngle = 0;
   dragAxis: string | null = null;
+  /**
+   * The animation editor's joint display: the whole overlay can be hidden
+   * (to watch a clip clean), single joints left out, and the gizmo held back
+   * while a clip is playing, when the mixer would overwrite any turn it made.
+   */
+  private jointsShown = true;
+  private hidden = new Set<string>();
+  private interactive = true;
 
   private targets: EditTarget[] = [];
   private overlay = new THREE.Group();
@@ -159,6 +167,7 @@ export class PoseEditor {
         );
         mesh.renderOrder = 999;
         this.overlay.add(mesh);
+        mesh.visible = !this.hidden.has(name);
         this.handles.push({ mesh, bone, name, target: t });
         if (bone.parent && Object.values(t.bones).includes(bone.parent)) pairs.push([bone, bone.parent]);
       }
@@ -194,9 +203,29 @@ export class PoseEditor {
 
   setEnabled(on: boolean): void {
     this.enabled = on;
-    this.overlay.visible = on;
-    this.gizmo.visible = on && !!this.anchor;
+    this.overlay.visible = on && this.jointsShown;
+    this.gizmo.visible = this.gizmoShown();
     if (!on) this.controls.enabled = true;
+  }
+
+  private gizmoShown(): boolean {
+    return this.enabled && this.interactive && !!this.anchor && !(this.selected && this.hidden.has(this.selected));
+  }
+
+  /** Show or hide the joint overlay, and which joints it leaves out. */
+  setJointDisplay(shown: boolean, hidden: Iterable<string> = this.hidden): void {
+    this.jointsShown = shown;
+    this.hidden = new Set(hidden);
+    this.overlay.visible = this.enabled && shown;
+    for (const h of this.handles) h.mesh.visible = !this.hidden.has(h.name);
+    this.gizmo.visible = this.gizmoShown();
+  }
+
+  /** Let the joints be picked and turned, or only watched. */
+  setInteractive(on: boolean): void {
+    this.interactive = on;
+    if (!on) { this.drag = null; this.controls.enabled = true; }
+    this.gizmo.visible = this.gizmoShown();
   }
 
   setSpace(space: GizmoSpace): void {
@@ -211,7 +240,7 @@ export class PoseEditor {
       const hit = this.handles.find((h) => h.name === name);
       this.anchor = hit ? hit.bone : null;
     }
-    this.gizmo.visible = !!this.anchor && this.enabled;
+    this.gizmo.visible = this.gizmoShown();
     this.onChange();
   }
 
@@ -265,13 +294,14 @@ export class PoseEditor {
   }
 
   private pickHandle(): Handle | null {
-    const hits = this.ray.intersectObjects(this.handles.map((h) => h.mesh), false);
+    if (!this.overlay.visible) return null;
+    const hits = this.ray.intersectObjects(this.handles.filter((h) => h.mesh.visible).map((h) => h.mesh), false);
     if (!hits.length) return null;
     return this.handles.find((h) => h.mesh === hits[0].object) ?? null;
   }
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.interactive) return;
     this.setPointer(ev);
 
     if (this.drag) {
@@ -321,7 +351,7 @@ export class PoseEditor {
   }
 
   private onPointerDown = (ev: PointerEvent): void => {
-    if (!this.enabled || ev.button !== 0) return;
+    if (!this.enabled || !this.interactive || ev.button !== 0) return;
     this.setPointer(ev);
 
     const ring = this.pickRing();
@@ -365,6 +395,10 @@ export class PoseEditor {
     this.onChange();
   };
 
+  private nameOf(bone: THREE.Object3D): string {
+    return this.handles.find((h) => h.bone === bone)?.name ?? '';
+  }
+
   // ---------- per-frame ----------
 
   update(): void {
@@ -381,6 +415,11 @@ export class PoseEditor {
       const arr = (line.geometry.getAttribute('position') as THREE.BufferAttribute);
       pairs.forEach(([a, b], i) => {
         a.getWorldPosition(p); arr.setXYZ(i * 2, p.x, p.y, p.z);
+        // a bone to a hidden joint is drawn as nothing
+        if (this.hidden.size && (this.hidden.has(this.nameOf(a)) || this.hidden.has(this.nameOf(b)))) {
+          arr.setXYZ(i * 2 + 1, p.x, p.y, p.z);
+          return;
+        }
         b.getWorldPosition(p); arr.setXYZ(i * 2 + 1, p.x, p.y, p.z);
       });
       arr.needsUpdate = true;

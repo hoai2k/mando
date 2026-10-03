@@ -797,7 +797,27 @@ draws the rig as clickable joints and rotates them with an on-screen gizmo (loca
 camera-relative rings, Shift to snap). Edits are written into the clips, so leaving edit mode
 plays the animation back with them, they undo and redo, and one export carries the whole
 session as JSON in the same units `src/anim/clips.ts` is written in — the way to correct a
-clip against a real model.
+clip against a real model. It opens on the authored model alone (**Show → Model**);
+**Compare** puts the procedural build beside it.
+
+The **animation editor** at `/workbench/?edit=pose` is the same turntable with a keyframe
+editor in place of the workbench panel. Every animation the game plays is listed on the
+left (filterable), each opening on a character that plays it in game — any other biped can
+be swapped in from the Character dropdown, and the pick is remembered per animation. Under
+the viewport a dope sheet shows a row per keyed joint (L = the legs' clip, U = the body's)
+and a diamond per key, with transport controls: play/pause (Space), step a frame (←/→),
+jump between keys (Shift+←/→), and speed. Click a key (or the *All keys* diamond) to select
+it and hold that frame; turn the joint in the viewport and the key changes — or, between
+keys, a new key is added. Keys drag along the timeline (snapping to 60 fps frames; Alt
+drags freely), delete (Delete), nudge (Alt+←/→), take an exact time, and a double-click on
+a row adds one. *Key whole pose*, copy/paste pose, mirror a joint onto its twin, revert a
+joint or an animation, and *Keep loops closed* (a cycle's first and last keys stay equal)
+round it out. Joints can be hidden one by one (the dot on each row), all at once (H), or
+only while playing. Edits are whole tracks held per clip name, so they play on every
+character that runs the clip, undo and redo with Ctrl/Cmd+Z, and **Export** downloads
+`animation-edits.json` (`mando-anim-edit/1`) with every clip edited in the session: each
+touched track's current and new keys as Euler XYZ degrees (`qt()` units) or metres, and the
+key times added, removed and changed.
 
 For the Armorer's choice-screen axe, open
 `/workbench/?edit=models&character=armorer&pose=idle&mode=authored`, enter

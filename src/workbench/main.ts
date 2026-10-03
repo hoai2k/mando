@@ -32,6 +32,8 @@ import { FistTuning } from './fistTuning';
 import { PalmEditor } from './palmAnchorEdit';
 import { editedPalms, handAnchorsJson, palmSnapshot, restorePalms } from '../characters/handAnchors';
 import { FigureWeapons, findWeaponOption, NO_WEAPON, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
+import { AnimEdits } from './animEdits';
+import { AnimEditorUI } from './animEditor';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -160,8 +162,15 @@ const initialParams = new URLSearchParams(location.search);
 if (initialParams.get('res') === 'full') showFullResolution();
 let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
 let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
-let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
-  ? initialParams.get('mode') as Mode : 'both';
+/**
+ * /workbench/?edit=pose is the animation editor: the same turntable, figures
+ * and clips, with a keyframe editor wired to them in place of the model
+ * workbench's panel — see `animEditor.ts`.
+ */
+const ANIM = initialParams.get('edit') === 'pose';
+// the model on its own unless the URL asks for the procedural build or the side-by-side
+let mode: Mode = !ANIM && (initialParams.get('mode') === 'both' || initialParams.get('mode') === 'procedural')
+  ? initialParams.get('mode') as Mode : 'authored';
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
 /** whether the folded panel sections are open — both start closed */
@@ -266,7 +275,8 @@ function activeClips(): { lower: string | null; upper: string | null } {
     };
     upper = upper ? (weaponClips[upper] ?? upper) : null;
   }
-  if (hasCounterweight(upper)) {
+  // the animation editor edits the clip the game plays, not a strength study of it
+  if (!ANIM && hasCounterweight(upper)) {
     const variant = `${upper}Offhand${Math.round(offhandStrength * 100)}`;
     if (figures.every((f) => !!f.inst.animator?.clips[variant])) upper = variant;
   }
@@ -372,7 +382,10 @@ function spawn(): void {
     if (!f.inst.animator) continue;
     edits.capture(f.inst.animator.clips);
     edits.apply(f.inst.animator.clips);
+    animEdits.capture(f.inst.animator.clips, cid());
+    if (animEdits.apply(f.inst.animator.clips)) f.inst.animator.invalidate();
   }
+  animEdits.active = figures.find((f) => f.inst.animator)?.inst.animator?.clips ?? null;
   // What the new subject can do decides what the picker offers, so the panel is
   // rebuilt here rather than by whoever called us — at first paint there were
   // no figures yet to ask, and the picker came up holding only the rest pose.
@@ -391,7 +404,8 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  expose({ __wb: { figures, subject, pose, camera, controls, editor, fistFrames } });  // debug/testing handle
+  animUI?.onSpawn();
+  expose({ __wb: { figures, subject, pose, camera, controls, editor, fistFrames, animEdits, animUI } });  // debug/testing handle
 }
 
 /**
@@ -764,6 +778,7 @@ function clipFor(bone: string): string | null {
  * moment, the difference from what the clip plays at the scrubbed time.
  */
 function commitBone(bone: string): void {
+  if (ANIM) { animUI?.commitBone(bone); return; }
   const clip = clipFor(bone);
   const rig = figures.find((f) => f.inst.rig)?.inst.rig;
   const joint = rig?.bones[bone as keyof typeof rig.bones];
@@ -822,8 +837,10 @@ interface WorkbenchState {
   fists: ReturnType<typeof fistTuneSnapshot>;
   shoulders: ReturnType<typeof shoulderSpacingSnapshot>;
   picks: ReturnType<WeaponChoices['snapshot']>;
+  anim: ReturnType<AnimEdits['snapshot']>;
 }
 const snapState = (): WorkbenchState => ({
+  anim: animEdits.snapshot(),
   pose: edits.snapshot(), weapon: weaponEditor.snapshot(), position: positionEditor.snapshot(),
   ride: vehicleEditor.snapshot(), palms: palmSnapshot(), fists: fistTuneSnapshot(),
   shoulders: shoulderSpacingSnapshot(), picks: weaponChoices.snapshot(),
@@ -867,6 +884,7 @@ function applyState(to: WorkbenchState): void {
   if (differs('shoulders')) restoreShoulderSpacing(to.shoulders);
   if (differs('picks')) weaponChoices.restoreSnapshot(to.picks);
   if (differs('pose')) edits.restoreSnapshot(to.pose);
+  if (differs('anim')) { animEdits.restoreSnapshot(to.anim); refreshAnim(); }
   // the clips from the ledger, and the figures posed again with every part put back
   if (differs('pose') || differs('picks')) refreshEdits();
   else if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
@@ -948,6 +966,7 @@ function syncSelectionUrl(): void {
 }
 
 function renderPanel(): void {
+  if (ANIM) { animUI?.render(); return; }
   const shoulderAsset = subject.character ?? subject.modelFile ?? subject.id;
   const shoulderSpacing = shoulderSpacingFor(shoulderAsset);
   const characterOptions = GROUPS
@@ -981,7 +1000,8 @@ function renderPanel(): void {
 
   panel.innerHTML = `
     <h1>Model workbench</h1>
-    <p class="sub">Game rig and clips, with workbench attack studies.</p>
+    <p class="sub">Game rig and clips, with workbench attack studies.
+      <a href="?edit=pose&amp;character=${subject.id}&amp;pose=${pose.id}${alternateChoice === 'none' ? '' : `&amp;alternate=${alternateChoice}`}">Animation editor</a></p>
 
     <div class="field">
       <label for="character">Character</label>
@@ -1917,6 +1937,7 @@ function syncEditValues(): void {
 }
 
 function onEditorChange(): void {
+  if (ANIM) { animUI?.onEditorChange(); return; }
   // a ride's rider: the turn the gizmo gave is kept as the ride's pose for him
   const ride = editing && editKind === 'rotate' ? rideOf(figures[0]) : null;
   if (ride && editor.selected && ride.jointPose && editor.selectedEuler()) {
@@ -2154,9 +2175,111 @@ function frame(now: number): void {
   weaponEditor.update(camera);
   vehicleEditor.update(camera);
   updateLoading();
+  animUI?.tick();
   controls.update();
   renderer.render(scene, camera);
 }
+
+// ---------- the animation editor's hold on the turntable ----------
+/** Write the animation editor's tracks into the figures' clips and hold the pose where it was. */
+function refreshAnim(): void {
+  const t = timelineTime();
+  for (const f of figures) {
+    const anim = f.inst.animator;
+    if (!anim) continue;
+    if (animEdits.apply(anim.clips)) anim.invalidate();
+    else anim.noteClipEdit();
+  }
+  applyPose();
+  seekAnimation(t);
+}
+
+/** Where the playhead is: the scrubbed time while paused, the longest clip's clock while playing. */
+function timelineTime(): number {
+  if (paused) return animationTime;
+  const anim = figures.find((f) => f.inst.animator)?.inst.animator;
+  if (!anim) return 0;
+  const clips = activeClips();
+  const names = [clips.lower, clips.upper].filter((n): n is string => !!n && !!anim.clips[n]);
+  const longest = names.sort((a, b) => anim.clips[b].duration - anim.clips[a].duration)[0];
+  const action = longest ? anim.mixer.existingAction(anim.clips[longest]) : null;
+  const dur = longest ? anim.clips[longest].duration : 0;
+  return action && dur > 0 ? ((action.time % dur) + dur) % dur : 0;
+}
+
+let animUI: AnimEditorUI | null = null;
+const animEdits = new AnimEdits();
+if (ANIM) {
+  document.body.classList.add('anim-editor');
+  document.title = 'Bounty Hunters — animation editor';
+  const list = document.createElement('aside');
+  list.id = 'animList';
+  document.body.insertBefore(list, stage);
+  const timeline = document.createElement('section');
+  timeline.id = 'timeline';
+  stage.after(timeline);
+  animUI = new AnimEditorUI({
+    panel, list, timeline, editor, edits: animEdits,
+    subjectId: () => subject.id,
+    characterId: cid,
+    poseId: () => pose.id,
+    alternate: () => alternateChoice,
+    show(subjectId, poseId, alternate) {
+      const before = { subject, pose, alternateChoice };
+      const wanted = findSubject(subjectId);
+      const fits = (): boolean => pose.id === poseId
+        && (alternate === 'none' || alternatesFor(pose).some((alt) => alt.id === alternate));
+      pose = findPose(poseId);
+      alternateChoice = alternate;
+      if (wanted.id !== subject.id) { subject = wanted; spawn(); } else { available(); applyPose(); }
+      const ok = figures.some((f) => f.inst.animator) && fits();
+      if (!ok) {
+        ({ subject, pose, alternateChoice } = before);
+        if (subject.id !== wanted.id) spawn(); else applyPose();
+      }
+      paused = false;
+      animationTime = 0;
+      syncAnimUrl();
+      return ok;
+    },
+    clipNames: activeClips,
+    clips: () => figures.find((f) => f.inst.animator)?.inst.animator?.clips ?? null,
+    rigBone: (name) => figures.find((f) => f.inst.rig)?.inst.rig?.bones[name as keyof NonNullable<CharacterInstance['rig']>['bones']] ?? null,
+    clipFor,
+    duration: animationDuration,
+    time: timelineTime,
+    paused: () => paused,
+    setPaused(p) {
+      if (p === paused) return;
+      if (p) { animationTime = timelineTime(); paused = true; seekAnimation(animationTime); }
+      else paused = false;
+    },
+    seek(t) { paused = true; seekAnimation(t); },
+    speed: () => animationSpeed,
+    setSpeed(v) { animationSpeed = v; },
+    refresh: refreshAnim,
+    undo: undoEdit,
+    redo: redoEdit,
+    canUndo,
+    canRedo,
+    checkpoint: () => setTimeout(settleHistory, 0),
+    loading: () => figures.some((f) => !!f.card),
+  });
+}
+
+/** the animation editor's URL: the character and the animation, so a reload comes back to them */
+function syncAnimUrl(): void {
+  const url = new URL(location.href);
+  url.searchParams.set('edit', 'pose');
+  url.searchParams.set('character', subject.id);
+  url.searchParams.set('pose', pose.id);
+  url.searchParams.delete('mode');
+  if (alternateChoice === 'none') url.searchParams.delete('alternate');
+  else url.searchParams.set('alternate', alternateChoice);
+  history.replaceState(null, '', url);
+}
+// a resized stage (the timeline growing under it) resizes the canvas
+new ResizeObserver(() => resize()).observe(stage);
 
 // `spawn` renders the panel itself, once there are figures to ask what they can
 // play. Rendering it before that asked an empty turntable, which can only offer
