@@ -35,6 +35,8 @@ import type { fitStats } from './world/collide';
 import type { ZoneSpec } from './world/mission';
 import type { Figure } from './workbench/main';
 import type { Pose } from './workbench/poses';
+import type { AnimEdits } from './workbench/animEdits';
+import type { AnimEditorUI } from './workbench/animEditor';
 import type { PoseEditor } from './workbench/poseEdit';
 import type { fistFrames } from './characters/fistRig';
 import type { Subject } from './workbench/roster';
@@ -165,6 +167,9 @@ export interface DebugHooks {
     editor: PoseEditor;
     /** each sculpt's hands as the fist rig measured them */
     fistFrames: typeof fistFrames;
+    /** the animation editor's tracks, and its UI on /workbench/?edit=pose (null on the model workbench) */
+    animEdits: AnimEdits;
+    animUI: AnimEditorUI | null;
   };
 
   // ---- set by the page's caller, read by the game ----
