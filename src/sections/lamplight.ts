@@ -241,6 +241,56 @@ function build(ctx: SectionContext): SectionInstance {
     return { ...w, box, mesh, state: 'shut' as const, t: 0 };
   });
 
+  // ---- the way on, lit: guide lamps the moment a web gives way ----
+  // In the dark a gap in a ring of rock is invisible from across a chamber,
+  // and an opened way the party cannot find is no way on. So each web has a
+  // run of lamps waiting behind it — studs down both walls of the passage,
+  // an arch round its mouth — that come on, mouth first, as it opens. They
+  // ignore the fog (the eye finds them from anywhere in the chamber) and a
+  // cold pool at the mouth keeps the brood off the threshold.
+  const guideMat = new THREE.MeshBasicMaterial({ color: 0x9fe0ff, fog: false, transparent: true, opacity: 0 });
+  ctx.own(guideMat);
+  const studGeo = new THREE.SphereGeometry(0.13, 8, 6);
+  const barGeo = new THREE.BoxGeometry(1, 1, 1);
+  ctx.own(studGeo); ctx.own(barGeo);
+  interface Guide { lamps: { m: THREE.Mesh; at: number }[]; mouth: THREE.Vector3; on: number; mat: THREE.MeshBasicMaterial }
+  const guides: Guide[] = walls.map((w, i) => {
+    const z1 = i < 2 ? TUNNELS[i][1] + 1 : EXIT[1] - 1;
+    const half = w.half - 0.25;
+    const h = w.z === WEB_Z ? 4 : TH;
+    const mat = guideMat.clone();
+    ctx.own(mat);
+    const lamps: Guide['lamps'] = [];
+    const add = (m: THREE.Mesh, at: number): void => { m.visible = false; ctx.mesh(m); lamps.push({ m, at }); };
+    // the arch round the mouth, a step into the chamber
+    const mz = w.z - 1;
+    for (const sx of [-1, 1]) {
+      const post = new THREE.Mesh(barGeo, mat);
+      post.scale.set(0.12, h, 0.12);
+      post.position.set(w.x + sx * (half + 0.1), Y0 + h / 2, mz);
+      add(post, 0);
+    }
+    const lintel = new THREE.Mesh(barGeo, mat);
+    lintel.scale.set(half * 2 + 0.3, 0.12, 0.12);
+    lintel.position.set(w.x, Y0 + h - 0.1, mz);
+    add(lintel, 0);
+    // studs down both walls, every two and a half metres
+    for (let z = w.z + 1; z < z1; z += 2.5) {
+      for (const sx of [-1, 1]) {
+        const stud = new THREE.Mesh(studGeo, mat);
+        stud.position.set(w.x + sx * half, Y0 + 0.45, z);
+        add(stud, z - w.z);
+      }
+    }
+    return { lamps, mouth: new THREE.Vector3(w.x, Y0, w.z - 1.5), on: -1, mat };
+  });
+  const lightTheWay = (i: number): void => {
+    const g = guides[i];
+    if (g.on >= 0) return;
+    g.on = 0;
+    dark.addPool(g.mouth, 2.6, 0x9fd8ff);
+  };
+
   // ---- the braziers ----
   const interactions = new Interactions();
   interface Brazier { ci: number; at: THREE.Vector3; lit: boolean; it: Interactable; ember: THREE.Mesh; flames: THREE.Sprite[]; pool: THREE.Mesh }
@@ -259,7 +309,8 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.own(emberGeo); ctx.own(poolGeo);
   // the dark stands up with the stage: the world's own light goes out now,
   // behind the arrival veil, not on the first frame of play
-  const dark: Darkness = new Darkness(game, ctx.group, { keep: ctx.group });
+  // four pool lights: a chamber's three braziers and the lit mouth of its way on
+  const dark: Darkness = new Darkness(game, ctx.group, { keep: ctx.group, poolLights: 4 });
   const braziers: Brazier[] = [];
   CHAMBERS.forEach((ch, ci) => {
     for (const b of ch.braziers) {
@@ -344,10 +395,12 @@ function build(ctx: SectionContext): SectionInstance {
     if (n < 3) ctx.announce(T.lit, T.litSub(n));
     else if (br.ci < 2) {
       walls[br.ci].state = 'shrinking';
+      lightTheWay(br.ci);
       ctx.announce(T.opened, T.openedSub);
     } else {
       // the last chamber: the web to the queen tunnel catches, and the brood comes
       walls[2].state = 'burning';
+      lightTheWay(2);
       burning = 0;
       rush = true;
       ctx.announce(T.burning, T.burningSub);
@@ -449,6 +502,14 @@ function build(ctx: SectionContext): SectionInstance {
     // the fire lights the passage while it burns
     if (burning >= 0 && !burnt && dark.pools.every((p) => p.pos.z < WEB_Z - 1)) dark.addPool(new THREE.Vector3(0, Y0, WEB_Z - 1.5), 3.5, 0xff6a20);
 
+    // the guide lamps come on mouth first, running down the passage
+    for (const g of guides) {
+      if (g.on < 0) continue;
+      g.on += dt;
+      g.mat.opacity = Math.min(1, g.on * 2) * (0.85 + 0.15 * Math.sin(game.time * 3));
+      for (const l of g.lamps) if (!l.m.visible && g.on * 14 >= l.at) l.m.visible = true;
+    }
+
     // flames
     for (const br of braziers) {
       if (!br.lit) {
@@ -490,7 +551,13 @@ function build(ctx: SectionContext): SectionInstance {
         hint: burnt ? T.hintExit : T.hintBurn, beacon: false,
       };
     }
-    const b = nextBrazier(partyCentre())!;
+    // still in a chamber that is done: the way on is the lit mouth, not a
+    // brazier on the far side of a wall of rock
+    const c = partyCentre();
+    if (ci > 0 && region(c.z) === chamberRegion[ci - 1]) {
+      return { pos: guides[ci - 1].mouth.clone(), label: T.wayOn, hint: T.hintOn, beacon: false };
+    }
+    const b = nextBrazier(c)!;
     return { pos: b.at.clone(), label: T.label, hint: T.hintLight, beacon: false };
   };
 
@@ -600,7 +667,7 @@ function build(ctx: SectionContext): SectionInstance {
     }),
   };
   // for the mechanics suite (tools/test-section-crevasse.mjs)
-  (inst as unknown as { kit: unknown }).kit = { dark, braziers, walls, bold, darkT, home, spawnBrood };
+  (inst as unknown as { kit: unknown }).kit = { dark, braziers, walls, guides, bold, darkT, home, spawnBrood };
   return inst;
 }
 

@@ -268,12 +268,24 @@ export class PhysicsWorld {
 
     // push out of box sides
     for (const b of this.boxes) {
-      if (b.oneWay && vel.x * b.oneWay.x + vel.z * b.oneWay.z > 0) continue;
+      const along = b.oneWay ? vel.x * b.oneWay.x + vel.z * b.oneWay.z : 0;
+      if (b.oneWay && along > 0) continue;
       const minX = b.min.x - radius, maxX = b.max.x + radius;
       const minZ = b.min.z - radius, maxZ = b.max.z + radius;
       if (pos.x <= minX || pos.x >= maxX || pos.z <= minZ || pos.z >= maxZ) continue;
       const feet = pos.y, head = pos.y + height;
       if (head <= b.min.y || feet >= b.max.y) continue;
+      // A one-way seal (a boss arena's way in) lets bodies through forward
+      // and never back. A body caught in its doorway that is not backing out
+      // — stopped, or shoved sideways — finishes the crossing out of the far
+      // face, so nothing ever ends a step wedged in the seal on the wrong side
+      // of it, or is turned back by the nearest-face rule.
+      if (b.oneWay && along >= -0.01) {
+        const ow = b.oneWay;
+        if (Math.abs(ow.x) >= Math.abs(ow.z)) pos.x = ow.x > 0 ? maxX : minX;
+        else pos.z = ow.z > 0 ? maxZ : minZ;
+        continue;
+      }
       // steppable: box top near feet level
       if (b.max.y - feet <= STEP_HEIGHT && vel.y <= 0.01) continue; // handled as ground
       const pushLeft = pos.x - minX, pushRight = maxX - pos.x;

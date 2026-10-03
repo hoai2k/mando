@@ -228,8 +228,13 @@ export class Campaign implements MissionController {
    * stand in a doorway forever, and everything here has a stand-in.
    */
   private settleT = -1;
-  /** back-transit: the slots standing in the pocket, waiting on the others */
+  /** the slots standing in the forward pocket, waiting on the others */
   readonly exited = new Set<number>();
+  /**
+   * Stages the party has stood in. A door into one of these has been crossed
+   * already, so it is a door anyone can work with Y and nobody waits at.
+   */
+  private readonly reached = new Set<number>();
   /** what the board looked like before this stage dressed it */
   private worldSaved: {
     fog: THREE.Fog | null; background: THREE.Color; gravity: number | undefined;
@@ -263,6 +268,7 @@ export class Campaign implements MissionController {
     const start = sectionStart(spec.stages);
     this.stageIdx = start;
     this.stage = this.raise(start);
+    this.reached.add(start);
     this.checkpoint = (this.stage.zones[0]?.center ?? this.stage.starts[0]).clone();
     game.players.forEach((p, i) => p.spawnAt(this.stage.starts[i % this.stage.starts.length]));
 
@@ -609,6 +615,7 @@ export class Campaign implements MissionController {
 
     this.lower();
     this.stageIdx = next;
+    this.reached.add(next);
     this.stage = this.raise(next);
     const stage = this.stage;
     // Coming back, the party arrives at the door they left by, standing in
@@ -1510,52 +1517,99 @@ export class Campaign implements MissionController {
   /**
    * The transport doors (docs/MISSIONS_OUTDOOR.md §1.9).
    *
-   * Forward, one player boarding takes the party: nobody is left behind and
-   * nobody is asked. Back, every living player has to be standing in the
-   * pocket — a player who steps in is marked *exited* on every HUD and can
-   * cancel back out, which is what stops a run being undone by one wrong step
-   * in a fight.
+   * **Forward, the first time:** a player who steps into the pocket waits
+   * there for the rest of the party (marked on every HUD, B steps back out),
+   * and when every living player is aboard the door goes on its own. Anyone
+   * waiting can press Y to go now, which takes the whole party — so nobody is
+   * held up by a straggler, and nobody is left behind either.
+   *
+   * **A door already crossed** — the way back, or the way on again after
+   * coming back — never goes on its own and nobody waits at it. Standing in
+   * its pocket offers Y, and one press takes the party through. (Only one
+   * stage stands at a time, so the party always travels together.)
    */
   private updatePortals(): void {
     const game = this.game;
     const stage = this.stage;
+    for (const p of game.players) p.portalHere = false;
+    const inPocket = (portal: { depthOf(v: THREE.Vector3): number }, p: { alive: boolean; position: THREE.Vector3 }): boolean =>
+      p.alive && portal.depthOf(p.position) >= PORTAL_POCKET - 0.6;
+
     const forward = stage.exitPortal;
-    if (forward && forward.open_ && this.idx >= stage.zones.length) {
+    const fwdOpen = !!forward && forward.open_ && this.idx >= stage.zones.length;
+    const crossed = this.reached.has(this.stageIdx + 1);
+    if (forward && fwdOpen) {
       for (const p of game.players) {
-        if (!p.alive) continue;
-        if (forward.depthOf(p.position) >= PORTAL_POCKET - 0.6) {
+        if (!inPocket(forward, p)) continue;
+        p.portalHere = true;
+        if (crossed) {
+          if (p.portalY) { this.beginTransit(this.stageIdx + 1); return; }
+          continue;
+        }
+        if (!this.exited.has(p.slot)) {
+          this.exited.add(p.slot);
+          p.exited = true;
+          game.announce(TEXT.banners.steppedOut.title, TEXT.banners.steppedOut.sub);
+        } else if (p.portalY) {
           this.beginTransit(this.stageIdx + 1);
           return;
         }
       }
     }
-
-    const back = stage.backPortal;
-    if (!back || this.backLocked) {
-      // nobody is waiting at a door that has shut on them
-      for (const p of game.players) p.exited = false;
+    // waiting is only ever at a first crossing; a door that shut, or one
+    // already crossed, has nobody waiting at it
+    if (!forward || !fwdOpen || crossed) {
+      for (const slot of this.exited) { const q = game.players[slot]; if (q) q.exited = false; }
       this.exited.clear();
+    }
+    for (const p of game.players) {
+      if (!this.exited.has(p.slot) || (p.alive && !p.cancelExit)) continue;
+      // B: they walk back out of the pocket and stop waiting
+      this.exited.delete(p.slot);
+      p.exited = false;
+      p.cancelExit = false;
+      if (forward) p.position.addScaledVector(new THREE.Vector3(forward.forward.x, 0, forward.forward.z), -PORTAL_CANCEL_STEP);
+    }
+    // everyone aboard: every living player with a hand on a controller (a
+    // bot wanders, and would hold the door shut for ever)
+    const living = game.players.filter((p) => p.alive);
+    const humans = living.filter((p) => !p.isBot);
+    const need = humans.length ? humans : living;
+    if (this.exited.size > 0 && need.length > 0 && need.every((p) => this.exited.has(p.slot))) {
+      this.beginTransit(this.stageIdx + 1);
       return;
     }
-    const living = game.players.filter((p) => p.alive);
+
+    // the way back: offered, never taken for anyone
+    const back = stage.backPortal;
+    if (!back || this.backLocked || !back.open_) return;
     for (const p of game.players) {
-      const inPocket = p.alive && back.depthOf(p.position) >= PORTAL_POCKET - 0.6;
-      if (inPocket && !this.exited.has(p.slot)) {
-        this.exited.add(p.slot);
-        p.exited = true;
-        game.announce(TEXT.banners.steppedOut.title, TEXT.banners.steppedOut.sub);
-      } else if (this.exited.has(p.slot) && (!p.alive || p.cancelExit)) {
-        // cancel: they walk back out of the pocket and the wait resets
-        this.exited.delete(p.slot);
-        p.exited = false;
-        p.cancelExit = false;
-        p.position.addScaledVector(
-          new THREE.Vector3(back.forward.x, 0, back.forward.z), -PORTAL_CANCEL_STEP);
-      }
+      if (!inPocket(back, p)) continue;
+      p.portalHere = true;
+      if (p.portalY) { this.beginTransit(this.stageIdx - 1); return; }
     }
-    if (living.length > 0 && living.every((p) => this.exited.has(p.slot))) {
-      this.beginTransit(this.stageIdx - 1);
+  }
+
+  /**
+   * The line a player's HUD shows about the transport doors: waiting in the
+   * pocket, who the party is waiting on, or the Y prompt at a crossed door.
+   */
+  portalNotice(p: { slot: number; alive: boolean; portalHere: boolean; position: THREE.Vector3 }): string {
+    const game = this.game;
+    const spec = MISSION_LAYOUTS[game.board.kind];
+    if (this.exited.has(p.slot)) return TEXT.missions.exited;
+    if (this.exited.size > 0) {
+      const living = game.players.filter((q) => q.alive);
+      const humans = living.filter((q) => !q.isBot);
+      const waiting = (humans.length ? humans : living).filter((q) => !this.exited.has(q.slot)).length;
+      const who = game.players.find((q) => this.exited.has(q.slot));
+      return TEXT.missions.waitingOn(who?.profile.name ?? '', waiting);
     }
+    if (!p.portalHere) return '';
+    const back = this.stage.backPortal;
+    const atBack = !!back && back.depthOf(p.position) >= PORTAL_POCKET - 0.6;
+    const to = atBack ? this.stageIdx - 1 : this.stageIdx + 1;
+    return TEXT.missions.portalGo(spec.stages[to]?.label ?? '', atBack);
   }
 
   // ---------------------------------------------------------------- frame

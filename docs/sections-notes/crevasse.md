@@ -13,7 +13,7 @@ Branch `claude/sections-crevasse`. Both sections are built, registered
 | `lamplight` | built · autopilot finishes at 1, 2 and 4 players (~40–50 s with hostiles culled) |
 | K7 `slideMove` | built · `flightMove` / `deckTilt` to come from their owners (see "For the next K7 mode") |
 | K9 `Darkness` | built · lamps, focused beam + battery, flares, warm pools, `lit()`, `fearOfLight()` |
-| Tests | `test-sections glacier-chute lamplight` at PLAYERS=1/2/4 · `tools/test-section-crevasse.mjs` (21 checks) |
+| Tests | `test-sections glacier-chute lamplight` at PLAYERS=1/2/4 · `tools/test-section-crevasse.mjs` (22 checks) |
 
 ## The Glacier Chute (`src/sections/glacier-chute.ts`)
 
@@ -252,3 +252,20 @@ at 1.5 m) — both with stand-ins.
   plays short.
 - The avalanche is a boiling wall of white puffs (stand-in); a proper snow cloud
   (sprites or a volumetric texture) would sell it better from behind.
+
+## Round 3 (2026-10-03, playtest: "I couldn't see the exit")
+
+- **Lamplight's way on is lit when it opens.** Each web wall has a run of
+  guide lamps behind it: an arch round the mouth and studs every 2.5 m down
+  both walls of the passage, cold blue-white and unfogged so they read from
+  anywhere in the chamber. They come on mouth first as the web shrinks back
+  (or, for the last web, as it starts to burn), and a cold pool of light
+  (2.6 m, one of the dark kit's now four pool lights) sits on the threshold so
+  the brood keeps off it.
+- While the party is still in a finished chamber, the objective marker points
+  at that lit mouth ("the way on", hint *Web open · follow the lights*) rather
+  than at a brazier on the far side of a wall of rock.
+- Run-wide changes made in the same round (not Crevasse-specific): transport
+  doors wait for the party with Y to go now, crossed doors are Y-only, and
+  boss seals are one-way forward for every body — see
+  `docs/MISSIONS_OUTDOOR.md` §1.9 and `tools/test-seals.mjs`.

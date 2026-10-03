@@ -282,7 +282,7 @@ export const TEXT = {
     ceilingSub: 'nothing flies over the rim',
     transport: (where: string) => `Making for ${where}`,
     transportSub: 'stand by',
-    steppedOut: { title: 'Standing in the transport', sub: 'everyone aboard before it goes back' },
+    steppedOut: { title: 'At the transport', sub: 'it goes when everyone is aboard · Y/C to go now' },
     lieutenantFallsMission: { title: 'The lieutenant falls', sub: 'the warlord waits at the end' },
   },
 
@@ -845,8 +845,9 @@ export const TEXT = {
      */
     wayOn: (where: string, metres: number) => `The way on is open · ${where} · ${metres} m`,
     stepThrough: (where: string) => `Step through to ${where}`,
-    exited: 'You have exited · B to cancel',
-    waitingOn: (name: string, n: number) => `${name} has stepped out — waiting on ${n} more`,
+    exited: 'Waiting for the party · Y/C to go now · B/Q to step out',
+    waitingOn: (name: string, n: number) => `${name} is at the transport — waiting on ${n} more`,
+    portalGo: (where: string, back: boolean) => `Y/C — ${back ? 'back to' : 'on to'} ${where}`,
     arrivedAt: (where: string) => `Arrived · ${where}`,
   },
   /**
@@ -1090,7 +1091,8 @@ export const TEXT = {
       verb: 'light the brazier',
       label: 'the brazier',
       hintLight: 'Hold Y at the brazier',
-      hintOn: 'The web is open · go on',
+      hintOn: 'Web open · follow the lights',
+      wayOn: 'the way on',
       hintBurn: 'Hold them off · the web is burning',
       hintExit: 'Through the web · the queen tunnel',
       lit: 'Brazier lit',

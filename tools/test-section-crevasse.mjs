@@ -262,6 +262,11 @@ const dark = await page.evaluate(async (blank) => {
   step(60);
   out.webWasSolid = solid0;
   out.webOpen = !g.board.physics.boxes.includes(wall.box) && wall.state === 'open';
+  // and the way on is lit: every guide lamp on, the mouth a pool of light
+  const gd = kit.guides[0];
+  out.guideLit = gd.lamps.length > 4 && gd.lamps.every((l) => l.m.visible) && gd.mat.opacity > 0.5
+    && kit.dark.pools.some((pl) => pl.pos.distanceTo(gd.mouth) < 0.1);
+  out.wayOnLabel = s.objective().label;
   return out;
 }, blankInput());
 
@@ -277,6 +282,8 @@ if (dark.flares) check('a flare drives the brood off', dark.flareGap > 1, `+${da
 check('holding Y at a brazier for two seconds lights it', dark.brazierLit);
 check('even a bold krykna will not enter a warm pool', dark.poolClosest > 5.5, `closest ${dark.poolClosest.toFixed(1)} m (pool 6 m)`);
 check('three lit: the web over the way on shrinks back and is gone', dark.webWasSolid && dark.webOpen);
+check('and the way on lights up: guide lamps down the passage, a pool at the mouth, the marker on it',
+  dark.guideLit && dark.wayOnLabel === 'the way on', JSON.stringify({ lit: dark.guideLit, label: dark.wayOnLabel }));
 
 const errs = h.errors.filter((e) => !/Couldn't load texture blob:/.test(String(e)));
 check('no page errors', errs.length === 0, errs.slice(0, 5).join(' | '));

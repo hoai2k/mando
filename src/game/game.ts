@@ -469,12 +469,7 @@ export class Game {
    * reasons nobody on the other screens can see.
    */
   exitNotice(p: Player): string {
-    const c = this.campaign;
-    if (!c || c.exited.size === 0) return '';
-    if (c.exited.has(p.slot)) return TEXT.missions.exited;
-    const waiting = this.players.filter((q) => q.alive && !c.exited.has(q.slot)).length;
-    const who = this.players.find((q) => c.exited.has(q.slot));
-    return TEXT.missions.waitingOn(who?.profile.name ?? '', waiting);
+    return this.campaign?.portalNotice(p) ?? '';
   }
 
   /** the campaign controller's mouthpiece (events is private) */

@@ -30,6 +30,8 @@ export interface MissionController {
   stageSettleProgress(): { ratio: number; pending: number };
   /** slots standing in a transport door's pocket, waiting on the rest */
   readonly exited: ReadonlySet<number>;
+  /** the line a player's HUD shows about the transport doors ('' for none) */
+  portalNotice(p: { slot: number; alive: boolean; portalHere: boolean; position: THREE.Vector3 }): string;
   /** somewhere inside the level a body of this kind can stand, at or near `pos` */
   placeNear(pos: THREE.Vector3, kind: EnemyKind): THREE.Vector3;
   /** where a fallen player comes back, or null to fall through to the board */

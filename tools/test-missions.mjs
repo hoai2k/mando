@@ -371,13 +371,23 @@ const portal = await page.evaluate(async () => {
   const portal = c.stage.exitPortal;
   out.portalOpens = portal.open_;
   const oldBodies = new Set(g.enemies);
-  // one player steps into the pocket: the whole party goes
+  // the first time through, one player in the pocket waits for the others...
   const before = c.stageIdx;
   const p = g.players[0];
-  for (let i = 0; i < 240 && c.stageIdx === before; i++) {
-    if (i % 30 === 0) p.position.copy(portal.threshold);
+  for (let i = 0; i < 60; i++) {
+    if (i % 20 === 0) p.position.copy(portal.threshold);
     g.update(1 / 30, idle);
   }
+  out.forwardWaits = c.stageIdx === before && c.exited.size === 1;
+  out.waitNotice = g.exitNotice(g.players[1]);
+  // B steps back out of the wait
+  const cancel = [{ ...blank(), rocketPressed: true }, blank(), blank(), blank()];
+  for (let i = 0; i < 10; i++) g.update(1 / 30, cancel);
+  out.cancelled = c.exited.size === 0 && c.stageIdx === before;
+  for (let i = 0; i < 30; i++) { if (i % 20 === 0) p.position.copy(portal.threshold); g.update(1 / 30, idle); }
+  // ...and Y there takes the whole party now
+  const yFirst = [{ ...blank(), slamPressed: true }, blank(), blank(), blank()];
+  for (let i = 0; i < 240 && c.stageIdx === before; i++) g.update(1 / 30, i < 2 ? yFirst : idle);
   out.forwardTook = c.stageIdx === before + 1;
   out.bothMoved = g.players.every((q) => Math.abs(q.position.y - c.stage.floorY) < 6);
   // Only bodies from the *old* map count: the new stage stands its own
@@ -385,38 +395,56 @@ const portal = await page.evaluate(async () => {
   out.enemiesCarried = g.enemies.filter((e) => e.alive && oldBodies.has(e)).length;
   out.hasBack = !!c.stage.backPortal;
 
-  // the way back: one in the pocket is a wait, not a transit
+  // the way back: standing in it takes nobody anywhere, even everyone
   const back = c.stage.backPortal;
   if (!back) return { ...out, noBackPortal: true };
+  for (let i = 0; i < 150 && c.settlingStage; i++) g.update(1 / 30, idle);
   const stageNow = c.stageIdx;
-  for (let i = 0; i < 60; i++) {
-    if (i % 20 === 0) g.players[0].position.copy(back.threshold);
+  for (let i = 0; i < 90; i++) {
+    if (i % 20 === 0) for (const q of g.players) q.position.copy(back.threshold);
     g.update(1 / 30, idle);
   }
-  out.oneWaits = c.stageIdx === stageNow && c.exited.size === 1;
-  out.noticeShown = !!g.exitNotice(g.players[1]);
-  // cancelling walks them back out
-  const cancel = [{ ...blank(), rocketPressed: true }, blank(), blank(), blank()];
-  for (let i = 0; i < 20; i++) g.update(1 / 30, cancel);
-  out.cancelled = c.exited.size === 0;
-  // everyone aboard, and it goes
+  out.backStays = c.stageIdx === stageNow && c.exited.size === 0;
+  out.backNotice = g.exitNotice(g.players[0]);
+  // Y in it takes the party back
+  const yBack = [{ ...blank(), slamPressed: true }, blank(), blank(), blank()];
   for (let i = 0; i < 240 && c.stageIdx === stageNow; i++) {
-    if (i % 30 === 0) for (const q of g.players) q.position.copy(back.threshold);
-    g.update(1 / 30, idle);
+    if (i % 20 === 0) g.players[0].position.copy(back.threshold);
+    g.update(1 / 30, i % 20 === 1 ? yBack : idle);
   }
   out.backTook = c.stageIdx === stageNow - 1;
   out.rememberedCleared = c.idx > 0;
+
+  // the way on again: crossed already, so nobody waits — Y takes the party
+  for (let i = 0; i < 150 && c.settlingStage; i++) g.update(1 / 30, idle);
+  for (let i = 0; i < 60; i++) g.update(1 / 30, idle);
+  const again = c.stageIdx;
+  const fwd = c.stage.exitPortal;
+  for (let i = 0; i < 60; i++) {
+    if (i % 20 === 0) g.players[0].position.copy(fwd.threshold);
+    g.update(1 / 30, idle);
+  }
+  out.againNoWait = c.stageIdx === again && c.exited.size === 0;
+  for (let i = 0; i < 240 && c.stageIdx === again; i++) {
+    if (i % 20 === 0) g.players[0].position.copy(fwd.threshold);
+    g.update(1 / 30, i % 20 === 1 ? yBack : idle);
+  }
+  out.againTook = c.stageIdx === again + 1;
   return out;
 });
 check('the way on to a stage opens once its zones are cleared', portal.portalOpens, JSON.stringify(portal));
-check('one player boarding takes the whole party forward',
+check('the first time through, one player at the door waits, and the others are told',
+  portal.forwardWaits && !!portal.waitNotice, JSON.stringify(portal));
+check('B steps back out of the wait', portal.cancelled, JSON.stringify(portal));
+check('Y at the door takes the whole party forward now',
   portal.forwardTook && portal.bothMoved, JSON.stringify(portal));
 check('nothing from the old map comes with them', portal.enemiesCarried === 0, String(portal.enemiesCarried));
-check('one player in the way back is a wait, and the others are told',
-  !portal.noBackPortal && portal.oneWaits && portal.noticeShown, JSON.stringify(portal));
-check('and they can cancel back out of it', portal.cancelled, JSON.stringify(portal));
-check('everyone aboard takes the party back', portal.backTook, JSON.stringify(portal));
+check('standing in the way back takes nobody anywhere, and offers Y',
+  !portal.noBackPortal && portal.backStays && /back to/.test(portal.backNotice), JSON.stringify(portal));
+check('Y in the way back takes the party back', portal.backTook, JSON.stringify(portal));
 check('to the stage as they left it, cleared', portal.rememberedCleared, JSON.stringify(portal));
+check('a door already crossed has nobody waiting at it, and Y takes the party on',
+  portal.againNoWait && portal.againTook, JSON.stringify(portal));
 
 // ------------------------------------------------------- the guidance, and death
 

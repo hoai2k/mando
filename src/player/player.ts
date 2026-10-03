@@ -687,6 +687,13 @@ export class Player {
   /** they pressed cancel this frame; the campaign walks them back out */
   cancelExit = false;
   /**
+   * Standing in a transport door's pocket (set by the campaign each frame):
+   * Y there works the door instead of taking cover, and `portalY` says it
+   * was pressed this frame.
+   */
+  portalHere = false;
+  portalY = false;
+  /**
    * The heading the stick is read against, when it is not the camera's
    * (docs/SECTIONS_IMPLEMENTATION.md §2.3). A rail section's camera does not
    * turn with the player, so "up" on the stick is set to mean along the rail.
@@ -1821,6 +1828,9 @@ export class Player {
     // looks around, and the only button that does anything is the one that
     // takes it back. Everything else would be a step out of the door the
     // party is waiting at.
+    // Y at a transport door works the door (see `portalHere`)
+    this.portalY = this.portalHere && input.slamPressed;
+    if (this.portalY) input = { ...input, slamPressed: false };
     if (this.exited) {
       // B is the menu's back button and cancels a pending transport. It is
       // the special button during play, but no special fires in the pocket.

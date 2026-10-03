@@ -64,6 +64,8 @@ const SUITES = [
   // the gameplay sections: ~60 s a section at 2 players (measured on the chimney)
   { name: 'test-sections', weight: 120 },
   { name: 'test-job-page', weight: 40 },
+  // boss arenas seal one way: every body can come in, nobody can leave by it
+  { name: 'test-seals', weight: 90 },
   { name: 'test-vehicles', weight: 365 },
   { name: 'test-modes', weight: 290 },
   { name: 'test-coop', weight: 263 },

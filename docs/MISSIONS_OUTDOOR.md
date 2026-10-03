@@ -475,27 +475,31 @@ the Storm Docks and the Ringworld are one place and stay one map.
 A stage boundary is a **transport door** — a door, a canyon mouth, a lift, a
 dive hatch, a moon pool — and it behaves by these rules:
 
-- **Forward: one boards, all go.** The moment one living player crosses the
-  door's threshold, the party is transported: a 1.5 s beat (the door's light
-  goes white, inputs blank, everyone's camera drifts toward the door, the
-  transport sting), the loading card for the next stage, and the party
-  **re-forms** at the new stage's start with the existing dissolve-and-re-form
-  animation. Nobody is left behind and nobody is asked. The threshold sits at
-  the end of a 4 m pocket behind the door leaves, so it is stepped through
-  deliberately, never brushed by.
-- **Back: everyone boards, then go.** The door you arrived by is a transport
-  door too, and it takes the party back — but only when **every living
-  player** is in its pocket. A player who steps in is marked **exited** on
-  every HUD (their portrait dims, the line *⟨name⟩ has stepped out — waiting
-  on the others*), their own view shows *You have exited · B to cancel*, they
-  take no damage and no input but cancel, and pressing cancel walks them back
-  out. The dead are not counted: they are already at the checkpoint. When the
-  last living player steps in, the transport plays and the previous stage
-  loads **as the party left it** — cleared through the zone they exited, its
-  gates open, its garrison gone, its pickups taken — from a `StageMemory`
-  the campaign keeps per stage. Going back is a safety valve (a missed cache,
-  a ride left behind), and the all-aboard rule is what stops it happening by
-  accident.
+- **Forward, the first time: wait, or Y to go.** (Revised 2026-10-03.) A
+  player who steps to the end of the door's 4 m pocket waits there: marked on
+  every HUD (*⟨name⟩ is at the transport — waiting on N more*), their own view
+  shows *Waiting for the party · Y/C to go now · B/Q to step out*, and they
+  take no damage and no input but those two. When every living player with a
+  controller (bots wander and are not waited on) is in the pocket, the party
+  is transported on its own: a 1.5 s beat (the door's light goes white, inputs
+  blank, the transport sting), the loading card, and the party **re-forms** at
+  the new stage's start with the dissolve-and-re-form animation. Anyone
+  waiting can press **Y** to go now, and that takes the whole party — nobody
+  is held up by a straggler and nobody is left behind.
+- **A door already crossed: Y, and nobody waits.** The way back, and the way
+  on again after coming back, never transports anyone on its own. Standing in
+  its pocket shows *Y/C — back to ⟨place⟩* (or *on to*), and one press takes
+  the party through. Only one stage stands at a time, so the party always
+  travels together. Going back loads the previous stage **as the party left
+  it** — cleared through the zone they exited, its gates open, its garrison
+  gone, its pickups taken — from a `StageMemory` the campaign keeps per stage.
+  Going back is a safety valve (a missed cache, a ride left behind), and the
+  press of Y is what stops it happening by accident.
+- **Boss arenas seal one way.** The way in to a lieutenant's or warlord's
+  arena shuts behind the party as a one-way seal: players, allies and enemies
+  still outside can always come through it forward, and nobody gets back out
+  by it until the fight is won. A body caught standing in the seal finishes
+  the crossing inward (`tools/test-seals.mjs`).
 - **Checkpoints cross with the party.** Arriving in a stage checkpoints its
   start; a wipe in a new stage re-forms the party there, never in the last
   one.
